@@ -144,6 +144,16 @@ is given then it download data for the current hour."
 
     args = parser.parse_args() 
 
+    # initialize recordType
+    recordType = ""
+    if args.type:
+        if args.type in ["ribs", "updates"]:
+            recordType = args.type
+        else:
+           sys.exit("Incorrect type specified; Choose from rib or update")
+    else:
+        sys.exit("Record type not specified")
+
     # initialize collectors
     collectors = []
     if args.collector:
@@ -154,38 +164,32 @@ is given then it download data for the current hour."
 
     # initialize time to start
     timeWindow = 15
-    # currentTime = datetime(2019, 7, 19, 5, 55) #datetime.utcnow()
     currentTime = datetime.utcnow()
     minuteStart = int(currentTime.minute/timeWindow)*timeWindow
     timeStart = ""
     if args.startTime:
         timeStart = args.startTime
     else:
-        timeStart = currentTime.replace(microsecond=0, second=0, minute=minuteStart)-timedelta(minutes=2*timeWindow)
+        if recordType == 'updates':
+            timeStart = currentTime.replace(microsecond=0, second=0, minute=minuteStart)-timedelta(minutes=2*timeWindow)
+        else:
+            timeStart = currentTime-timedelta(minutes=60)
 
     # initialize time to end
     timeEnd = ""
     if args.endTime:
         timeEnd = args.endTime
     else:
-        timeEnd = currentTime.replace(microsecond=0, second=0, minute=minuteStart)-timedelta(minutes=timeWindow)
-
+        if recordType == 'updates':
+            timeEnd = currentTime.replace(microsecond=0, second=0, minute=minuteStart)-timedelta(minutes=timeWindow)
+        else:
+            timeEnd = currentTime
 
     FORMAT = '%(asctime)s %(processName)s %(message)s'
-    logging.basicConfig(format=FORMAT, filename='log_%s.log' % timeStart, level=logging.DEBUG, datefmt='%Y-%m-%d %H:%M:%S')
+    logging.basicConfig(format=FORMAT, filename='ihr-kafka-bgpstream.log' % timeStart, level=logging.ERROR, datefmt='%Y-%m-%d %H:%M:%S')
     logging.info("Started: %s" % sys.argv)
     logging.info("Arguments: %s" % args)
     logging.warning('start time: {}, end time: {}'.format(timeStart, timeEnd))
-
-    # initialize recordType
-    recordType = ""
-    if args.type:
-        if args.type in ["ribs", "updates"]:
-            recordType = args.type
-        else:
-            sys.exit("Incorrect type specified; Choose from rib or update")
-    else:
-        sys.exit("Record type not specified")
 
     for collector in collectors:
         logging.warning("Downloading {} data for {}".format(recordType, collector))
