@@ -142,7 +142,10 @@ is given then it download data for the current hour."
 
 
     FORMAT = '%(asctime)s %(processName)s %(message)s'
-    logging.basicConfig(format=FORMAT, filename='ihr-kafka-bgpstream2.log' % timeStart, level=logging.ERROR, datefmt='%Y-%m-%d %H:%M:%S')
+    logging.basicConfig(
+            format=FORMAT, filename='ihr-kafka-bgpstream2.log' , 
+            level=logging.ERROR, datefmt='%Y-%m-%d %H:%M:%S'
+            )
     logging.info("Started: %s" % sys.argv)
     logging.info("Arguments: %s" % args)
     logging.warning('start time: {}, end time: {}'.format(timeStart, timeEnd))
