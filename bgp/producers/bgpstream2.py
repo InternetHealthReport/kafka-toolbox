@@ -128,7 +128,7 @@ is given then it download data for the current hour."
         if recordType == 'updates':
             timeStart = currentTime.replace(microsecond=0, second=0, minute=minuteStart)-timedelta(minutes=2*timeWindow)
         else:
-            timeStart = currentTime-timedelta(minutes=60)
+            timeStart = currentTime-timedelta(minutes=120)
 
     # initialize time to end
     timeEnd = ""
