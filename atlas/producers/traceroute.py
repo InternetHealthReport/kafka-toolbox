@@ -1,4 +1,4 @@
-import json
+import datetime
 import calendar
 import json
 import msgpack
@@ -8,15 +8,23 @@ import requests
 import sys
 import configparser
 import argparse
-import tools
 from datetime import timedelta
 from requests_futures.sessions import FuturesSession
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
-#IMPORT KAFKA PRODUCER
-from kafka import KafkaProducer #, KafkaAdminClient, NewTopic
-from kafka.admin import KafkaAdminClient, NewTopic
+# from kafka import KafkaProducer #, KafkaAdminClient, NewTopic
+from confluent_kafka import Producer
+from confluent_kafka.admin import AdminClient, NewTopic
+# from kafka.admin import KafkaAdminClient, NewTopic
+
+def valid_date(s):
+    try:
+        return datetime.datetime.strptime(s+"UTC", "%Y-%m-%dT%H:%M%Z")
+    except ValueError:
+        msg = "Not a valid date: '{0}'. \
+Accepted format is YYYY-MM-DDThh:mm, for example 2018-06-01T00:00".format(s)
+        raise argparse.ArgumentTypeError(msg)
 
 
 def requests_retry_session(
@@ -77,18 +85,30 @@ def cousteau_on_steroid(params, retry=3):
             logging.error("Could not retrieve traceroutes for {}".format(query))
             logging.error(tmp[1])
 
+
+def delivery_report(err, msg):
+    """ Called once for each message produced to indicate delivery result.
+        Triggered by poll() or flush(). """
+    if err is not None:
+        print('Message delivery failed: {}'.format(err))
+    else:
+        # print('Message delivered to {} [{}]'.format(msg.topic(), msg.partition()))
+        pass
+
 if __name__ == '__main__':
-    producer = KafkaProducer(bootstrap_servers=['kafka1:9092', 'kafka2:9092', 'kafka3:9092'],
-            value_serializer=lambda v: msgpack.packb(v, use_bin_type=True),
-            key_serializer=lambda k: k.to_bytes(8, byteorder='big'),
-            compression_type='snappy', linger_ms=1000) 
-
-    #end import
-    logging.basicConfig()#should be removable soon
-
+    # Command line arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("-C","--config_file", help="Get all parameters from the specified config file", type=str, default="conf/raclette.conf")
     args = parser.parse_args()
+
+    # Logging 
+    FORMAT = '%(asctime)s %(processName)s %(message)s'
+    logging.basicConfig(
+            format=FORMAT, filename='ihr-kafka-traceroute.log' , 
+            level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S'
+            )
+    logging.info("Started: %s" % sys.argv)
+    logging.info("Arguments: %s" % args)
 
     # Read the config file
     config = configparser.ConfigParser()
@@ -97,19 +117,29 @@ if __name__ == '__main__':
     atlas_msm_ids =  [int(x) for x in config.get("io", "msm_ids").split(",") if x]
     atlas_probe_ids =  [int(x) for x in config.get("io", "probe_ids").split(",") if x]
 
-    atlas_start =  tools.valid_date(config.get("io", "start"))
-    atlas_stop =  tools.valid_date(config.get("io", "stop"))
+    atlas_start =  valid_date(config.get("io", "start"))
+    atlas_stop =  valid_date(config.get("io", "stop"))
     chunk_size = int(config.get('io', 'chunk_size'))
 
+    # Create kafka topic
     topic = config.get("io", "kafka_topic")
-    admin_client = KafkaAdminClient(bootstrap_servers=['kafka1:9092', 'kafka2:9092', 'kafka3:9092'], client_id='atlas_producer_admin')
+    admin_client = AdminClient({'bootstrap.servers':'kafka1:9092, kafka2:9092, kafka3:9092'})
 
-    try:
-        topic_list = [NewTopic(name=topic, num_partitions=3, replication_factor=0)]
-        admin_client.create_topics(new_topics=topic_list, validate_only=False)
-    except:
-        pass
+    topic_list = [NewTopic(topic, num_partitions=3, replication_factor=1)]
+    created_topic = admin_client.create_topics(topic_list)
+    for topic, f in created_topic.items():
+        try:
+            f.result()  # The result itself is None
+            logging.warning("Topic {} created".format(topic))
+        except Exception as e:
+            logging.warning("Failed to create topic {}: {}".format(topic, e))
 
+    # Create producer
+    producer = Producer({'bootstrap.servers': 'kafka1:9092,kafka2:9092,kafka3:9092',
+        # 'linger.ms': 1000, 
+        'default.topic.config': {'compression.codec': 'snappy'}}) 
+
+    # Fetch data from RIPE
     current_time = atlas_start
     end_time = atlas_stop
     while current_time < end_time:
@@ -120,13 +150,24 @@ if __name__ == '__main__':
             if is_success:
                 for traceroute in data:
                     try:
-                        producer.send(topic, key=traceroute['msm_id'], 
-                                value=traceroute, timestamp_ms = traceroute.get('timestamp')*1000)
-                    except KeyError:
-                        logging.warning('Ignoring one traceroute: {}'.format(traceroute))
-            else:
-                print("Error could not load the data")
+                        producer.produce(
+                                topic, 
+                                msgpack.packb(traceroute, use_bin_type=True), 
+                                traceroute['msm_id'].to_bytes(8, byteorder='big'),
+                                callback=delivery_report,
+                                timestamp = traceroute.get('timestamp')*1000
+                                )
 
+                        # Trigger any available delivery report callbacks from previous produce() calls
+                        producer.poll(0)
+
+                    except KeyError:
+                        logging.error('Ignoring one traceroute: {}'.format(traceroute))
+            else:
+                logging.error("Error could not load the data")
+
+            # Wait for any outstanding messages to be delivered and delivery report
+            # callbacks to be triggered.
             producer.flush()
 
         current_time = current_time + timedelta(seconds = chunk_size)
