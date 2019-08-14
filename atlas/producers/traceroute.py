@@ -12,20 +12,17 @@ from datetime import timedelta
 from requests_futures.sessions import FuturesSession
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
-
-# from kafka import KafkaProducer #, KafkaAdminClient, NewTopic
 from confluent_kafka import Producer
 from confluent_kafka.admin import AdminClient, NewTopic
-# from kafka.admin import KafkaAdminClient, NewTopic
 
 def valid_date(s):
+    """Parse date from config file"""
+
     try:
         return datetime.datetime.strptime(s+"UTC", "%Y-%m-%dT%H:%M%Z")
     except ValueError:
-        msg = "Not a valid date: '{0}'. \
-Accepted format is YYYY-MM-DDThh:mm, for example 2018-06-01T00:00".format(s)
-        raise argparse.ArgumentTypeError(msg)
-
+        # Not a valid date: 
+        return None
 
 def requests_retry_session(
     retries=3,
@@ -35,6 +32,7 @@ def requests_retry_session(
     max_workers=8,
 ):
     """ Retry if there is a problem"""
+
     session = session or FuturesSession(max_workers=max_workers)
     retry = Retry(
         total=retries,
@@ -51,6 +49,7 @@ def requests_retry_session(
 
 def worker_task(resp, *args, **kwargs):
     """Process json in background"""
+
     try:
         resp.data = resp.json()
     except json.decoder.JSONDecodeError:
@@ -59,6 +58,8 @@ def worker_task(resp, *args, **kwargs):
 
 
 def cousteau_on_steroid(params, retry=3):
+    """Query the REST API in parallel"""
+
     url = "https://atlas.ripe.net/api/v2/measurements/{0}/results"
     req_param = {
             "start": int(calendar.timegm(params["start"].timetuple())),
@@ -98,7 +99,10 @@ def delivery_report(err, msg):
 if __name__ == '__main__':
     # Command line arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument("-C","--config_file", help="Get all parameters from the specified config file", type=str, default="conf/raclette.conf")
+    parser.add_argument(
+            "-C","--config_file", 
+            help="Get all parameters from the specified config file", 
+            type=str, default="conf/ihr-default.conf")
     args = parser.parse_args()
 
     # Logging 
@@ -119,6 +123,13 @@ if __name__ == '__main__':
 
     atlas_start =  valid_date(config.get("io", "start"))
     atlas_stop =  valid_date(config.get("io", "stop"))
+    if atlas_start is None or atlas_stop is None:
+        # Fetch the last 10 min of data - 5min
+        currentTime = datetime.datetime.utcnow()
+        atlas_start = currentTime.replace(microsecond=0, second=0)-timedelta(minutes=15)
+        atlas_stop = currentTime.replace(microsecond=0, second=0)-timedelta(minutes=5)
+        logging.warning('start and end times: {}, {}'.format(atlas_start, atlas_stop))
+
     chunk_size = int(config.get('io', 'chunk_size'))
 
     # Create kafka topic
