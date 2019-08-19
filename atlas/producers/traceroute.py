@@ -81,8 +81,6 @@ def cousteau_on_steroid(params, retry=3):
         query = tmp[0]
         try:
             resp = query.result()
-            if resp.data['timestamp'] >= req_param['stop']:
-                continue
 
             yield (resp.ok, resp.data)
         except requests.exceptions.ChunkedEncodingError:
@@ -158,6 +156,7 @@ if __name__ == '__main__':
     # Fetch data from RIPE
     current_time = atlas_start
     end_time = atlas_stop
+    end_epoch = int(calendar.timegm(end_time.timetuple()))
     while current_time < end_time:
         logging.warning("downloading: "+str(current_time))
         params = { "msm_id": atlas_msm_ids, "start": current_time, "stop": current_time  + timedelta(seconds=chunk_size), "probe_ids": atlas_probe_ids }
@@ -165,6 +164,9 @@ if __name__ == '__main__':
         for is_success, data in cousteau_on_steroid(params):
             if is_success:
                 for traceroute in data:
+
+                    if traceroute['timestamp'] >= end_epoch:
+                        continue
                     try:
                         producer.produce(
                                 topic, 
