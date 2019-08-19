@@ -81,6 +81,9 @@ def cousteau_on_steroid(params, retry=3):
         query = tmp[0]
         try:
             resp = query.result()
+            if resp.data['timestamp'] >= req_param['stop']:
+                continue
+
             yield (resp.ok, resp.data)
         except requests.exceptions.ChunkedEncodingError:
             logging.error("Could not retrieve traceroutes for {}".format(query))
@@ -123,10 +126,12 @@ if __name__ == '__main__':
 
     atlas_start =  valid_date(config.get("io", "start"))
     atlas_stop =  valid_date(config.get("io", "stop"))
+
+    # No data given:
+    # Fetch the last 5 min of data that happened -10 to -5 min ago 
     if atlas_start is None or atlas_stop is None:
-        # Fetch the last 10 min of data - 5min
         currentTime = datetime.datetime.utcnow()
-        atlas_start = currentTime.replace(microsecond=0, second=0)-timedelta(minutes=15)
+        atlas_start = currentTime.replace(microsecond=0, second=0)-timedelta(minutes=10)
         atlas_stop = currentTime.replace(microsecond=0, second=0)-timedelta(minutes=5)
         logging.warning('start and end times: {}, {}'.format(atlas_start, atlas_stop))
 
