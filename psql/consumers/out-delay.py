@@ -1,15 +1,15 @@
 import sys
 import psycopg2
 import psycopg2.extras
+from pgcopy import CopyManager
 import logging
 import json
 from datetime import datetime
-from cStringIO import StringIO
 import msgpack
 from confluent_kafka import Consumer 
 
 
-class saverPostgresql(object):
+class saverOutDelay(object):
 
     """Dumps raclette results to the Postgresql database. """
 
@@ -21,8 +21,7 @@ class saverPostgresql(object):
         """
 
         self.prevts = 0 
-        self.currenttime = starttime
-        self.af = af
+        self.currenttimebin = None
         self.data = [] 
         self.cpmgr = None
 
@@ -53,13 +52,13 @@ class saverPostgresql(object):
         logging.debug("Connected to the PostgreSQL server")
 
         self.cursor.execute("SELECT id, type, name, af FROM ihr_atlas_location ")
-        self.locations = {x[1]+x[2]+"v"+x[3]: x[0] for x in self.cursor.fetchall()])
+        self.locations = {x[1]+x[2]+"v"+x[3]: x[0] for x in self.cursor.fetchall()}
         logging.debug("%s locations registered in the database" % len(self.locations))
 
         # Kafka consumer initialisation
         self.consumer = Consumer({
             'bootstrap.servers': 'kafka1:9092, kafka2:9092, kafka3:9092',
-            'group.id': 'ihr_raclette_diffrtt_saver0',
+            'group.id': 'ihr_raclette_diffrtt_sink0',
             'auto.offset.reset': 'earliest',
             })
 
@@ -73,9 +72,17 @@ class saverPostgresql(object):
         """
 
         while True:
-            msg_bin = self.consumer.poll(1.0)
-            msg = msgpack.unpackb(msg_bin.value(), raw=False)
-            self.save(msg)
+            msg = self.consumer.poll(60.0)
+            if msg is None:
+                self.commit()
+                continue
+
+            if msg.error():
+                logging.error("Consumer error: {}".format(msg.error()))
+                continue
+
+            msg_val = msgpack.unpackb(msg.value(), raw=False)
+            self.save(msg_val)
 
     def save(self, msg):
         """
@@ -84,28 +91,34 @@ class saverPostgresql(object):
         """
 
         # Update the current bin timestamp
-        if self.prevts != ts:
-            self.prevts = ts
-            self.currenttime = datetime.utcfromtimestamp(ts)
-            logging.debug("start recording raclette results")
+        if self.prevts != msg['ts']:
+            self.prevts = msg['ts']
+            self.currenttimebin = datetime.utcfromtimestamp(msg['ts']) 
+            logging.debug("start recording raclette results (ts={})".format(self.currenttimebin))
 
         # Update seen locations
         new_locations = set([msg['startpoint'], msg['endpoint']]).difference(self.locations)
         if  new_locations:
-            logging.warn("psql: add new locations %s" % new_locations)
-            insertQuery = 'INSERT INTO ihr_asn(type, name, af) \
+            logging.warning("psql: add new locations %s" % new_locations)
+            insertQuery = 'INSERT INTO ihr_atlas_location (type, name, af) \
                     VALUES (%s, %s, %s) RETURNING id'
             for loc in new_locations:
-                self.cursor.execute(insertQuery, loc[:2], loc[2,-2], int(loc[-1]))
+                # TODO fix raclette timetracker to always give a family address 
+                try:
+                    af = int(loc[-1])
+                except ValueError:
+                    af = 4
+                self.cursor.execute(insertQuery, (loc[:2], loc[2:-2], af))
                 loc_id = self.cursor.fetchone()[0]
                 self.locations[loc] = loc_id
 
         # Append diffrtt values to copy in the database
         self.data.append( (
-            int(msg['ts']), 
+            #int(ts),
+            self.currenttimebin,
             self.locations[msg['startpoint']], self.locations[msg['endpoint']],
             msg['median'], msg['nb_tracks'], msg['nb_probes'], msg['entropy'], 
-            msg['hop'], msg['nbrealrtts']
+            int(msg['hop']), msg['nb_real_rtts']
             ) )
 
     def commit(self):
@@ -113,16 +126,21 @@ class saverPostgresql(object):
         Push buffered messages to the database and flush the buffer.
         """
 
-        logging.warn("psql: start copy")
-        self.cpmgr.copy(self.data, StringIO)
+        if not self.data:
+            # Nothing to commit
+            return
+
+        logging.warning("psql: start copy")
+        self.cpmgr.copy(self.data)
         self.conn.commit()
-        logging.warn("psql: end copy")
+        logging.warning("psql: end copy")
         self.data= []
 
 
 if __name__ == "__main__":
-    if len(sys.argv)<2:
-        print("usage: %s af" % sys.argv[0])
-        sys.exit()
 
-    logging.basicConfig(level=logging.DEBUG)
+    FORMAT = '%(asctime)s %(processName)s %(message)s'
+    logging.basicConfig(format=FORMAT, filename='kafka-psql-out-delay.log', level=logging.WARN, datefmt='%Y-%m-%d %H:%M:%S')
+    logging.info("Started: %s" % sys.argv)
+
+    sod = saverOutDelay()
