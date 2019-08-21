@@ -59,7 +59,8 @@ class saverPostgresql(object):
         # Kafka consumer initialisation
         self.consumer = Consumer({
             'bootstrap.servers': 'kafka1:9092, kafka2:9092, kafka3:9092',
-            'group.id': 'ihr_raclette_results_reader0',
+            'group.id': 'ihr_raclette_diffrtt_saver0',
+            'auto.offset.reset': 'earliest',
             })
 
         self.consumer.subscribe([topicname])
