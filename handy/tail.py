@@ -1,3 +1,4 @@
+import sys
 import msgpack 
 import argparse
 from kafka import KafkaConsumer
@@ -26,9 +27,12 @@ if __name__ == '__main__':
     consumer.poll()
     consumer.seek_to_end()
     offset = consumer.position(partition)-args.num_msg
-    consumer.seek(partition, offset)
+
+    if offset<0:
+        sys.exit('Empty topic')
 
     # retrieve messages
+    consumer.seek(partition, offset)
     for i, message in enumerate(consumer):
         print(message)
         if i>=args.num_msg-1:
