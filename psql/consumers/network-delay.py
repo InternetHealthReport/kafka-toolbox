@@ -52,7 +52,7 @@ class saverOutDelay(object):
         logging.debug("Connected to the PostgreSQL server")
 
         self.cursor.execute("SELECT id, type, name, af FROM ihr_atlas_location ")
-        self.locations = {x[1]+x[2]+"v"+x[3]: x[0] for x in self.cursor.fetchall()}
+        self.locations = {x[1]+x[2]+"v"+str(x[3]): x[0] for x in self.cursor.fetchall()}
         logging.debug("%s locations registered in the database" % len(self.locations))
 
         # Kafka consumer initialisation
