@@ -170,6 +170,6 @@ is given then it download data for the current hour."
     logging.warning("Arguments: %s" % args)
     logging.warning('start time: {}, end time: {}'.format(timeStart, timeEnd))
 
-    logging.warning("Downloading {} RIB data for {}".format(recordType, collector))
+    logging.warning("Downloading {} data for {}".format(recordType, collector))
     pushData(recordType, collector, timeStart, timeEnd)
         
