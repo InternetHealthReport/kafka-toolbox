@@ -1,7 +1,7 @@
 import sys
 import argparse
-from kafka import KafkaProducer
-from kafka.admin import KafkaAdminClient, NewTopic
+from confluent_kafka import Producer
+from confluent_kafka.admin import AdminClient, NewTopic
 from pybgpstream import BGPStream
 from datetime import datetime
 from datetime import timedelta
@@ -11,6 +11,15 @@ import logging
 
 def dt2ts(dt):
     return int((dt - datetime(1970, 1, 1)).total_seconds())
+
+def delivery_report(err, msg):
+    """ Called once for each message produced to indicate delivery result.
+        Triggered by poll() or flush(). """
+    if err is not None:
+        logging.error('Message delivery failed: {}'.format(err))
+    else:
+        # print('Message delivered to {} [{}]'.format(msg.topic(), msg.partition()))
+        pass
 
 
 def getRecordDict(record):
@@ -48,23 +57,23 @@ def pushData(record_type, collector, startts, endts):
             record_type=record_type
             )
 
-    topicName = "ihr_bgp_" + collector + "_" + record_type
-    admin_client = KafkaAdminClient(
-            bootstrap_servers=['kafka1:9092', 'kafka2:9092', 'kafka3:9092'], 
-            client_id='bgp_producer_admin')
+    # Create kafka topic
+    topic = "ihr_bgp_" + collector + "_" + record_type
+    admin_client = AdminClient({'bootstrap.servers':'kafka1:9092, kafka2:9092, kafka3:9092'})
 
-    try:
-        topic_list = [NewTopic(name=topicName, num_partitions=1, replication_factor=1)]
-        admin_client.create_topics(new_topics=topic_list, validate_only=False)
-    except:
-        pass
-    admin_client.close()
+    topic_list = [NewTopic(topic, num_partitions=1, replication_factor=2)]
+    created_topic = admin_client.create_topics(topic_list)
+    for topic, f in created_topic.items():
+        try:
+            f.result()  # The result itself is None
+            logging.warning("Topic {} created".format(topic))
+        except Exception as e:
+            logging.warning("Failed to create topic {}: {}".format(topic, e))
 
-    producer = KafkaProducer(
-        bootstrap_servers=['kafka1:9092', 'kafka2:9092', 'kafka3:9092'], 
-        # acks=0, 
-        value_serializer=lambda v: msgpack.packb(v, use_bin_type=True),
-        linger_ms=1000, request_timeout_ms=300000, compression_type='snappy')
+    # Create producer
+    producer = Producer({'bootstrap.servers': 'kafka1:9092,kafka2:9092,kafka3:9092',
+        # 'linger.ms': 1000, 
+        'default.topic.config': {'compression.codec': 'snappy'}}) 
     
     for rec in stream.records():
         completeRecord = {}
@@ -79,9 +88,19 @@ def pushData(record_type, collector, startts, endts):
             elementDict = getElementDict(elem)
             completeRecord["elements"].append(elementDict)
 
-        producer.send(topicName, completeRecord, timestamp_ms=recordTimeStamp)
+        producer.produce(
+                topic, 
+                msgpack.packb(completeRecord, use_bin_type=True), 
+                callback=delivery_report,
+                timestamp = recordTimeStamp
+                )
 
-    producer.close()
+        # Trigger any available delivery report callbacks from previous produce() calls
+        producer.poll(0)
+
+    # Wait for any outstanding messages to be delivered and delivery report
+    # callbacks to be triggered.
+    producer.flush()
 
 
 if __name__ == '__main__':
@@ -92,7 +111,7 @@ one partition in order to make sequential reads easy. If no start and end time \
 is given then it download data for the current hour."
 
     parser = argparse.ArgumentParser(description = text)  
-    parser.add_argument("--collector","-c",help="Choose collector(s) to push data for")
+    parser.add_argument("--collector","-c",help="Choose collector to push data for")
     parser.add_argument("--startTime","-s",help="Choose start time (Format: Y-m-dTH:M:S; Example: 2017-11-06T16:00:00)")
     parser.add_argument("--endTime","-e",help="Choose end time (Format: Y-m-dTH:M:S; Example: 2017-11-06T16:00:00)")
     parser.add_argument("--type","-t",help="Choose record type: ribs or updates")
@@ -109,11 +128,9 @@ is given then it download data for the current hour."
     else:
         sys.exit("Record type not specified")
 
-    # initialize collectors
-    collectors = []
+    # initialize collector
     if args.collector:
-        collectorList = args.collector.split(",")
-        collectors = collectorList
+        collector = args.collector
     else:
         sys.exit("Collector(s) not specified")
 
@@ -128,7 +145,10 @@ is given then it download data for the current hour."
         if recordType == 'updates':
             timeStart = currentTime.replace(microsecond=0, second=0, minute=minuteStart)-timedelta(minutes=2*timeWindow)
         else:
-            timeStart = currentTime-timedelta(minutes=120)
+            delay = 120
+            if 'rrc' in collector:
+                delay = 240
+            timeStart = currentTime-timedelta(minutes=delay)
 
     # initialize time to end
     timeEnd = ""
@@ -150,7 +170,6 @@ is given then it download data for the current hour."
     logging.warning("Arguments: %s" % args)
     logging.warning('start time: {}, end time: {}'.format(timeStart, timeEnd))
 
-    for collector in collectors:
-        logging.warning("Downloading {} RIB data for {}".format(recordType, collector))
-        pushData(recordType, collector, timeStart, timeEnd)
+    logging.warning("Downloading {} RIB data for {}".format(recordType, collector))
+    pushData(recordType, collector, timeStart, timeEnd)
         
