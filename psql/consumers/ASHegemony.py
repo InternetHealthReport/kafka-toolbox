@@ -62,11 +62,13 @@ class saverPostgresql(object):
         self.consumer.subscribe('ihr_hegemony_values_ipv{}'.format(self.af))
 
         while True:
-            msg_pack = consumer.poll(timeout_ms=5000)
-            if len(msgs) == 0:
+            msg_pack = consumer.poll(10.0)
+            if msg is None:
                 self.commit()
+                continue
             else:
-                for tp, msgs in msg_pack.items():
+                msg = msgpack.unpackb(msg_pack.value(), raw=False)
+                for tp, msgs in msg.items():
                     for message in msgs:
                         self.save(message.value)
 
