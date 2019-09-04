@@ -92,7 +92,7 @@ def delivery_report(err, msg):
     """ Called once for each message produced to indicate delivery result.
         Triggered by poll() or flush(). """
     if err is not None:
-        print('Message delivery failed: {}'.format(err))
+        logging.error('Message delivery failed: {}'.format(err))
     else:
         # print('Message delivered to {} [{}]'.format(msg.topic(), msg.partition()))
         pass
@@ -139,7 +139,7 @@ if __name__ == '__main__':
     topic = config.get("io", "kafka_topic")
     admin_client = AdminClient({'bootstrap.servers':'kafka1:9092, kafka2:9092, kafka3:9092'})
 
-    topic_list = [NewTopic(topic, num_partitions=3, replication_factor=1)]
+    topic_list = [NewTopic(topic, num_partitions=3, replication_factor=2)]
     created_topic = admin_client.create_topics(topic_list)
     for topic, f in created_topic.items():
         try:
