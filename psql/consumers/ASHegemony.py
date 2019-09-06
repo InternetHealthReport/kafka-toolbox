@@ -119,7 +119,7 @@ class saverPostgresql(object):
         # Update seen ASNs
         if int(msg['scope']) not in self.asns:
             self.asns.add(int(msg['scope']))
-            logging.warn("psql: add new scope %s" % msg['scope'])
+            logging.warning("psql: add new scope %s" % msg['scope'])
             self.cursor.execute(
                     "INSERT INTO ihr_asn(number, name, tartiflette, disco, ashash) \
                             select %s, %s, FALSE, FALSE, TRUE \
@@ -129,7 +129,7 @@ class saverPostgresql(object):
 
         if int(msg['asn']) not in self.asns:
             self.asns.add(int(msg['asn']))
-            logging.warn("psql: add new asn %s" % msg['asn'])
+            logging.warning("psql: add new asn %s" % msg['asn'])
             self.cursor.execute(
                     "INSERT INTO ihr_asn(number, name, tartiflette, disco, ashash) \
                             select %s, %s, FALSE, FALSE, TRUE \
@@ -149,16 +149,16 @@ class saverPostgresql(object):
         if len(self.dataHege) == 0:
             return
 
-        logging.warn("psql: start copy")
+        logging.warning("psql: start copy")
         self.cpmgr.copy(self.dataHege)
         self.conn.commit()
-        logging.warn("psql: end copy")
+        logging.warning("psql: end copy")
         # Populate the table for AS hegemony cone
-        logging.warn("psql: adding hegemony cone")
+        logging.warning("psql: adding hegemony cone")
         self.cursor.execute("INSERT INTO ihr_hegemonycone (timebin, conesize, af, asn_id) SELECT timebin, count(distinct originasn_id), af, asn_id FROM ihr_hegemony WHERE timebin=%s and asn_id!=originasn_id and originasn_id!=0 GROUP BY timebin, af, asn_id;", (self.currenttime,))
         self.conn.commit()
         self.dataHege = []
-        logging.warn("psql: end hegemony cone")
+        logging.warning("psql: end hegemony cone")
 
         self.updateASN()
 
@@ -168,7 +168,9 @@ if __name__ == "__main__":
         print("usage: %s af" % sys.argv[0])
         sys.exit()
 
-    logging.basicConfig(level=logging.DEBUG)
+    FORMAT = '%(asctime)s %(processName)s %(message)s'
+    logging.basicConfig(format=FORMAT, filename='ihr-kafka-psql-ASHegemony.log', level=logging.WARN, datefmt='%Y-%m-%d %H:%M:%S')
+    logging.info("Started: %s" % sys.argv)
 
     af = int(sys.argv[1])
     ss = saverPostgresql(af)

@@ -145,7 +145,7 @@ class saverOutDelay(object):
 if __name__ == "__main__":
 
     FORMAT = '%(asctime)s %(processName)s %(message)s'
-    logging.basicConfig(format=FORMAT, filename='kafka-psql-out-delay.log', level=logging.WARN, datefmt='%Y-%m-%d %H:%M:%S')
+    logging.basicConfig(format=FORMAT, filename='ihr-kafka-psql-out-delay.log', level=logging.WARN, datefmt='%Y-%m-%d %H:%M:%S')
     logging.info("Started: %s" % sys.argv)
 
     sod = saverOutDelay()
