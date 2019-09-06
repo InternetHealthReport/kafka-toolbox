@@ -40,7 +40,6 @@ class saverPostgresql(object):
         self.cursor = self.conn.cursor()
         logging.debug("Connected to the PostgreSQL server")
 
-
         self.consumer = Consumer({
             'bootstrap.servers': 'kafka1:9092, kafka2:9092, kafka3:9092',
             'group.id': 'ihr_hegemony_values_sink0_ipv{}'.format(self.af),
@@ -69,12 +68,6 @@ class saverPostgresql(object):
                 continue
 
             msg_val = msgpack.unpackb(msg.value(), raw=False)
-
-            # TODO remove the this: fix for py2/py3 msgpack imcompatibility
-            msg_val['ts'] = msg_val[b'ts']
-            msg_val['scope'] = msg_val[b'scope']
-            msg_val['hege'] = msg_val[b'hege']
-            msg_val['asn'] = msg_val[b'asn']
 
             if not validASN(msg_val['asn']):
                 if (isinstance(msg_val['asn'], str) 
@@ -170,7 +163,7 @@ if __name__ == "__main__":
 
     FORMAT = '%(asctime)s %(processName)s %(message)s'
     logging.basicConfig(format=FORMAT, filename='ihr-kafka-psql-ASHegemony.log', level=logging.WARN, datefmt='%Y-%m-%d %H:%M:%S')
-    logging.info("Started: %s" % sys.argv)
+    logging.warning("Started: %s" % sys.argv)
 
     af = int(sys.argv[1])
     ss = saverPostgresql(af)
