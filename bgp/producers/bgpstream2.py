@@ -147,7 +147,7 @@ is given then it download data for the current hour."
         else:
             delay = 120
             if 'rrc' in collector:
-                delay = 240
+                delay = 480
             timeStart = currentTime-timedelta(minutes=delay)
 
     # initialize time to end
@@ -156,7 +156,7 @@ is given then it download data for the current hour."
         timeEnd = args.endTime
     else:
         if recordType == 'updates':
-            timeEnd = currentTime.replace(microsecond=0, second=0, minute=minuteStart)-timedelta(minutes=timeWindow)
+            timeEnd = currentTime.replace(microsecond=0, second=0, minute=minuteStart)-timedelta(minutes=1*timeWindow)
         else:
             timeEnd = currentTime
 
@@ -173,3 +173,4 @@ is given then it download data for the current hour."
     logging.warning("Downloading {} data for {}".format(recordType, collector))
     pushData(recordType, collector, timeStart, timeEnd)
         
+    logging.warning("End: %s" % sys.argv)
