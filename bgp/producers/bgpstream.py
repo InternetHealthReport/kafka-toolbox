@@ -111,9 +111,7 @@ def pushData(record_type, collector, startts, endts):
         completeRecord["rec"] = getRecordDict(rec)
         completeRecord["elements"] = []
 
-        recordTimeStamp = rec.time
-
-        recordTimeStamp = int(recordTimeStamp) * 1000
+        recordTimeStamp = int(rec.time*1000)
 
         elem = rec.get_next_elem()
 
