@@ -50,8 +50,6 @@ class saverPostgresql(object):
 
         self.updateASN()
 
-        self.run()
-
     def run(self):
         """
         Consume data from the kafka topic and save it to the database.
@@ -167,5 +165,5 @@ if __name__ == "__main__":
 
     af = int(sys.argv[1])
     ss = saverPostgresql(af)
-    ss.start()
+    ss.run()
 
