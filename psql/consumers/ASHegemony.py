@@ -100,10 +100,10 @@ class saverPostgresql(object):
             print(msg)
         # Update the current bin timestamp
         if self.prevts != msg['ts']:
+            self.commit()
             self.prevts = msg['ts']
             self.currenttime = datetime.utcfromtimestamp(msg['ts'])
             logging.debug("start recording hegemony")
-            self.commit()
 
 
         # Update seen ASNs
