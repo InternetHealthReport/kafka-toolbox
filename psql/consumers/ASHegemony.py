@@ -42,7 +42,7 @@ class saverPostgresql(object):
 
         self.consumer = Consumer({
             'bootstrap.servers': 'kafka1:9092, kafka2:9092, kafka3:9092',
-            'group.id': 'ihr_hegemony_values_sink_ipv{}'.format(self.af),
+            'group.id': 'ihr_hegemony_values_psql_sink_ipv{}'.format(self.af),
             'auto.offset.reset': 'earliest',
             })
 

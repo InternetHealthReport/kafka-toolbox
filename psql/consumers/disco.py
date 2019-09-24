@@ -134,9 +134,10 @@ class saverPostgresql(object):
                 self.cursor.execute( deleteQuery,
                         (msg['streamtype'].lower(), str(msg['streamname']), starttime))
                 deletedRow = self.cursor.fetchone()
-                deleteQuery = 'DELETE FROM ihr_disco_probes \
-                    WHERE event_id=%s'
-                self.cursor.execute( deleteQuery, (deletedRow[0],) )
+                if deletedRow is not None:
+                    deleteQuery = 'DELETE FROM ihr_disco_probes \
+                        WHERE event_id=%s'
+                    self.cursor.execute( deleteQuery, (deletedRow[0],) )
 
             else:
                 # Update long events
