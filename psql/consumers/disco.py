@@ -6,7 +6,7 @@ import msgpack
 from datetime import datetime
 from probeDataConsumer import ProbeDataConsumer
 
-MIN_OUTAGE_DURATION = 1800
+MIN_OUTAGE_DURATION = 300
 
 class saverPostgresql(object):
     """Dumps disco results to a Postgresql database. """
