@@ -71,6 +71,7 @@ class saverPostgresql(object):
         are potentially not finished yet.
         '''
 
+        nb_events = 0
         while True:
             msg_pck = self.consumer_bursts.poll(60.0)
             if msg_pck is None:
@@ -82,6 +83,7 @@ class saverPostgresql(object):
 
             msg = msgpack.unpackb(msg_pck.value(), raw=False)
             starttime = datetime.utcfromtimestamp(msg['starttime']) 
+            nb_events+=1
 
             # INSERT detected event
             insertQuery = 'INSERT INTO ihr_disco_events \
@@ -105,6 +107,9 @@ class saverPostgresql(object):
 
         self.conn.commit()
         self.consumer_bursts.commit()
+
+        if nb_events:
+            logging.warning('added {} disco events'.format(nb_events))
             
 
     def processReconnect(self):
@@ -114,6 +119,7 @@ class saverPostgresql(object):
         information.
         '''
 
+        nb_reco = 0
         while True:
             msg_pck = self.consumer_reconnect.poll(60.0)
             if msg_pck is None:
@@ -126,6 +132,7 @@ class saverPostgresql(object):
             msg = msgpack.unpackb(msg_pck.value(), raw=False)
             starttime = datetime.utcfromtimestamp(msg['starttime']) 
             endtime = datetime.utcfromtimestamp(msg['endtime']) 
+            nb_reco += 1
 
             # Delete short events
             if (endtime - starttime).total_seconds() < MIN_OUTAGE_DURATION:
@@ -164,6 +171,8 @@ class saverPostgresql(object):
         self.conn.commit()
         self.consumer_reconnect.commit()
             
+        if nb_reco:
+            logging.warning('updated {} disco events'.format(nb_reco))
 
     def close(self):
         self.conn.close()
