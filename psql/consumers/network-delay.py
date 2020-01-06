@@ -52,7 +52,7 @@ class saverOutDelay(object):
         logging.debug("Connected to the PostgreSQL server")
 
         self.cursor.execute("SELECT id, type, name, af FROM ihr_atlas_location ")
-        self.locations = {x[1]+x[2]+"v"+x[3]: x[0] for x in self.cursor.fetchall()}
+        self.locations = {x[1]+x[2]+"v"+str(x[3]): x[0] for x in self.cursor.fetchall()}
         logging.debug("%s locations registered in the database" % len(self.locations))
 
         # Kafka consumer initialisation
@@ -72,7 +72,7 @@ class saverOutDelay(object):
         """
 
         while True:
-            msg = self.consumer.poll(60.0)
+            msg = self.consumer.poll(10.0)
             if msg is None:
                 self.commit()
                 continue
@@ -92,9 +92,14 @@ class saverOutDelay(object):
 
         # Update the current bin timestamp
         if self.prevts != msg['ts']:
+            self.commit()
             self.prevts = msg['ts']
             self.currenttimebin = datetime.utcfromtimestamp(msg['ts']) 
             logging.debug("start recording raclette results (ts={})".format(self.currenttimebin))
+
+        # FIXME: for now we ignore probes
+        if msg['startpoint'].startswith('PB') or msg['endpoint'].startswith('PB'):
+            return
 
         # Update seen locations
         new_locations = set([msg['startpoint'], msg['endpoint']]).difference(self.locations)
@@ -105,7 +110,7 @@ class saverOutDelay(object):
             for loc in new_locations:
                 # TODO fix raclette timetracker to always give a family address 
                 try:
-                    af = int(loc[-1])
+                    af = int(loc.rpartition('v')[2])
                 except ValueError:
                     af = 4
                 self.cursor.execute(insertQuery, (loc[:2], loc[2:-2], af))
@@ -140,7 +145,7 @@ class saverOutDelay(object):
 if __name__ == "__main__":
 
     FORMAT = '%(asctime)s %(processName)s %(message)s'
-    logging.basicConfig(format=FORMAT, filename='kafka-psql-out-delay.log', level=logging.WARN, datefmt='%Y-%m-%d %H:%M:%S')
-    logging.info("Started: %s" % sys.argv)
+    logging.basicConfig(format=FORMAT, filename='ihr-kafka-psql-out-delay.log', level=logging.WARN, datefmt='%Y-%m-%d %H:%M:%S')
+    logging.warning("Started: %s" % sys.argv)
 
     sod = saverOutDelay()

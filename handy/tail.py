@@ -19,7 +19,7 @@ if __name__ == '__main__':
 
     # Instantiate Kafka Consumer
     consumer = KafkaConsumer(args.topic, bootstrap_servers=[args.server],
-            group_id='ihr_tail', enable_auto_commit=True,
+            group_id='ihr_tail', enable_auto_commit=False, consumer_timeout_ms=10000,
             value_deserializer=lambda v: msgpack.unpackb(v, raw=False))
     partition = TopicPartition(args.topic, args.partition)
 
@@ -28,11 +28,14 @@ if __name__ == '__main__':
     consumer.seek_to_end()
     offset = consumer.position(partition)-args.num_msg
 
-    if offset<0:
+    if offset<0 and args.num_msg==1:
         sys.exit('Empty topic')
+    elif offset < 0:
+        consumer.seek_to_beginning()
+    else:
+        consumer.seek(partition, offset)
 
     # retrieve messages
-    consumer.seek(partition, offset)
     for i, message in enumerate(consumer):
         print(message)
         if i>=args.num_msg-1:
