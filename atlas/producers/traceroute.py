@@ -110,7 +110,7 @@ if __name__ == '__main__':
     FORMAT = '%(asctime)s %(processName)s %(message)s'
     logging.basicConfig(
             format=FORMAT, filename='ihr-kafka-traceroute.log' , 
-            level=logging.DEBUG, datefmt='%Y-%m-%d %H:%M:%S'
+            level=logging.WARN, datefmt='%Y-%m-%d %H:%M:%S'
             )
     logging.info("Started: %s" % sys.argv)
     logging.info("Arguments: %s" % args)
@@ -168,7 +168,7 @@ if __name__ == '__main__':
                     if traceroute['timestamp'] >= end_epoch:
                         continue
                     try:
-                        logging.error('going to produce something')
+                        logging.debug('going to produce something')
                         producer.produce(
                                 topic, 
                                 msgpack.packb(traceroute, use_bin_type=True), 
@@ -177,7 +177,7 @@ if __name__ == '__main__':
                                 timestamp = traceroute.get('timestamp')*1000
                                 )
 
-                        logging.error('produced something')
+                        logging.debug('produced something')
                         # Trigger any available delivery report callbacks from previous produce() calls
                         producer.poll(0)
 
