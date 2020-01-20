@@ -42,15 +42,13 @@ class saverPostgresql(object):
 
         self.consumer = Consumer({
             'bootstrap.servers': 'kafka1:9092, kafka2:9092, kafka3:9092',
-            'group.id': 'ihr_hegemony_values_sink0_ipv{}'.format(self.af),
+            'group.id': 'ihr_hegemony_values_psql_sink_ipv{}'.format(self.af),
             'auto.offset.reset': 'earliest',
             })
 
         self.consumer.subscribe(['ihr_hegemony_values_ipv{}'.format(self.af)])
 
         self.updateASN()
-
-        self.run()
 
     def run(self):
         """
@@ -60,7 +58,6 @@ class saverPostgresql(object):
         while True:
             msg = self.consumer.poll(10.0)
             if msg is None:
-                self.commit()
                 continue
 
             if msg.error():
@@ -103,10 +100,10 @@ class saverPostgresql(object):
             print(msg)
         # Update the current bin timestamp
         if self.prevts != msg['ts']:
+            self.commit()
             self.prevts = msg['ts']
             self.currenttime = datetime.utcfromtimestamp(msg['ts'])
             logging.debug("start recording hegemony")
-            self.commit()
 
 
         # Update seen ASNs
@@ -148,7 +145,11 @@ class saverPostgresql(object):
         logging.warning("psql: end copy")
         # Populate the table for AS hegemony cone
         logging.warning("psql: adding hegemony cone")
-        self.cursor.execute("INSERT INTO ihr_hegemonycone (timebin, conesize, af, asn_id) SELECT timebin, count(distinct originasn_id), af, asn_id FROM ihr_hegemony WHERE timebin=%s and asn_id!=originasn_id and originasn_id!=0 GROUP BY timebin, af, asn_id;", (self.currenttime,))
+        self.cursor.execute(
+                "INSERT INTO ihr_hegemonycone (timebin, conesize, af, asn_id) \
+                        SELECT timebin, count(distinct originasn_id), af, asn_id \
+                        FROM ihr_hegemony WHERE timebin=%s and asn_id!=originasn_id and originasn_id!=0 \
+                        GROUP BY timebin, af, asn_id;", (self.currenttime,))
         self.conn.commit()
         self.dataHege = []
         logging.warning("psql: end hegemony cone")
@@ -167,5 +168,5 @@ if __name__ == "__main__":
 
     af = int(sys.argv[1])
     ss = saverPostgresql(af)
-    ss.start()
+    ss.run()
 
