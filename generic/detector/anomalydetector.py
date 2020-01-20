@@ -46,7 +46,7 @@ class AnomalyDetector():
         self.value_field = config.get('io', 'value_field')
         self.key_field = config.get('io', 'key_field')
         self.time_granularity_min = config.get('io', 'time_granularity_min')
-        self.kafak_topic_out = config.get('io', 'output_topic')
+        self.kafka_topic_out = config.get('io', 'output_topic')
 
         self.history = defaultdict(lambda : {'values':[], 'timestamps':[]})
 
@@ -168,7 +168,7 @@ class AnomalyDetector():
         logging.debug('Report anomalous datapoint: {}, {}'.format(datapoint, deviation))
 
         producer.produce(
-                self.kafak_topic_out, 
+                self.kafka_topic_out, 
                 msgpack.packb({'datapoint':datapoint, 'deviation':deviation}, use_bin_type=True), 
                 callback=delivery_report,
                 timestamp = timestamp
