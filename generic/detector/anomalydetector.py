@@ -15,7 +15,6 @@ import confluent_kafka
 # - rely only on kafka timestamps, make sure kafka timestamps correspond to the datapoint timestamps
 # - assume the input topic is temporaly sorted
 
-MIN_HIST_SIZE = 2/3
 
 def delivery_report(err, msg):
     """ Called once for each message produced to indicate delivery result.
@@ -29,7 +28,7 @@ def delivery_report(err, msg):
 
 class AnomalyDetector():
 
-    def __init__(self, conf_fname='anomalyDetection.conf'):
+    def __init__(self, conf_fname='anomalydetector.conf'):
         """ Read the configuration file and initialize parameter values.
         Does not initialize the history. Run init_history() before starting
         detect()"""
@@ -38,22 +37,30 @@ class AnomalyDetector():
         config = configparser.ConfigParser()
         config.read(conf_fname)
 
-        self.detection_threshold = config.get('detection', 'threshold')
-        self.detection_noise = config.get('detection', 'noise')
-        self.history_hours = config.get('detection', 'history_hours')
+        self.detection_threshold = config.getfloat('detection', 'threshold')
+        self.detection_noise = config.getfloat('detection', 'noise')
+        self.history_hours = config.getfloat('detection', 'history_hours')
+        self.history_min_ratio = config.getfloat('detection', 'history_min_ratio')
 
         self.kafka_topic_in = config.get('io', 'input_topic')
         self.value_field = config.get('io', 'value_field')
-        self.key_field = config.get('io', 'key_field')
-        self.time_granularity_min = config.get('io', 'time_granularity_min')
+        self.key_field = [key for key in config.get('io', 'key_field').split(',')]
+        self.time_granularity_min = config.getfloat('io', 'time_granularity_min')
         self.kafka_topic_out = config.get('io', 'output_topic')
+        self.kafka_consumer_group = config.get('io', 'consumer_group')
 
         self.history = defaultdict(lambda : {'values':[], 'timestamps':[]})
+
+        # Initialize logger
+        FORMAT = '%(asctime)s %(processName)s %(message)s'
+        logging.basicConfig(format=FORMAT, filename=self.kafka_consumer_group+'.log', 
+                level=logging.WARNING, datefmt='%Y-%m-%d %H:%M:%S')
+        logging.warning("Started: %s" % sys.argv)
 
         # Initialize kafka consumer
         self.consumer = Consumer({
             'bootstrap.servers': 'kafka1:9092, kafka2:9092, kafka3:9092',
-            'group.id': 'ihr_anomaly_detector_{}'.format(self.kafka_topic_in),
+            'group.id': self.kafka_consumer_group,
             'auto.offset.reset': 'earliest',
             })
 
@@ -88,13 +95,13 @@ class AnomalyDetector():
     def init_history(self):
         """Populate the history with data preceding the detection time."""
 
-        history_starttime = self.detection_starttime - (self.history_hours*60*60*1000) 
+        history_starttime = int(self.detection_starttime - (self.history_hours*60*60*1000))
         logging.debug('History starttime set to: {}'.format(history_starttime))
         
         # Set offsets according to current data and history size
         topic_info = self.consumer.list_topics(self.kafka_topic_in)
         partitions = [TopicPartition(self.kafka_topic_in, partition_id, history_starttime) 
-                for partition_id in  topic_info.topics[self.topic].partitions.keys()]
+                for partition_id in  topic_info.topics[self.kafka_topic_in].partitions.keys()]
 
         for offset in self.consumer.offsets_for_times(partitions):
             self.consumer.seek(offset)
@@ -116,14 +123,17 @@ class AnomalyDetector():
             # Populate history dictionary
             datapoint = msgpack.unpackb(msg.value(), raw=False)
 
-            self.history[datapoint[self.key_field]]['values'].append(datapoint[self.value_field])
-            self.history[datapoint[self.key_field]]['timestamps'].append(ts[1])
+            key = ','.join(str(datapoint[keyf]) for keyf in self.key_field)
+            self.history[key]['values'].append(datapoint[self.value_field])
+            self.history[key]['timestamps'].append(ts[1])
 
 
     def detect(self):
         """
         Consume data from kafka topic, report anomalous datapoint, and update history.
         """
+
+        logging.warning('Starting detection with history for {} keys...'.format(len(self.history)))
 
         while True:
             msg = self.consumer.poll(10.0)
@@ -137,27 +147,27 @@ class AnomalyDetector():
             datapoint = msgpack.unpackb(msg.value(), raw=False)
             ts = msg.timestamp()
 
-            hist = self.history[datapoint[self.key_field]]
+            key = ','.join(str(datapoint[keyf]) for keyf in self.key_field)
+            hist = self.history[datapoint[key]]
 
             # Remove outdated values from the history
-            while hist['timestamps'][0] < ts[1]-self.history_hours*60*60*1000:
+            while len(hist['timestamps']) and hist['timestamps'][0] < ts[1]-self.history_hours*60*60*1000:
                 hist['timestamps'].pop(0)
                 hist['values'].pop(0)
 
-            # Check if we have at least MIN_HIST_SIZE of expected data in the history
-            if len(hist['values']) < MIN_HIST_SIZE * self.history_hours * (60/self.time_granularity):
-                continue
+            # Check if we have at least history_min_ratio of expected data in the history
+            if len(hist['values']) > self.history_min_ratio*self.history_hours*(60/self.time_granularity_min):
 
-            # Compute detection boundaries
-            median = statistics.median(hist['values'])
-            mad = 1.4826*statistics.median([statistics.fabs(x-median) for x in hist['values']])
+                # Compute detection boundaries
+                median = statistics.median(hist['values'])
+                mad = 1.4826*statistics.median([abs(x-median) for x in hist['values']])
 
-            # Check if the new datapoint is within the boundaries
-            deviation = (datapoint[self.value_field] - median) / (mad*self.detection_threshold+median*self.noise)
-            if deviation > self.detection_threshold or deviation < self.detection_threshold:
-                self.report_anomaly(ts[1], datapoint, deviation)
+                # Check if the new datapoint is within the boundaries
+                deviation = (datapoint[self.value_field] - median) / (mad*self.detection_threshold+median*self.detection_noise)
+                if abs(deviation) > self.detection_threshold:
+                    self.report_anomaly(ts[1], datapoint, deviation)
 
-            # Add new datapoint to the history
+            # Add datapoint to the history
             hist['values'].append(datapoint[self.value_field])
             hist['timestamps'].append(ts[1])
 
@@ -167,7 +177,7 @@ class AnomalyDetector():
 
         logging.debug('Report anomalous datapoint: {}, {}'.format(datapoint, deviation))
 
-        producer.produce(
+        self.producer.produce(
                 self.kafka_topic_out, 
                 msgpack.packb({'datapoint':datapoint, 'deviation':deviation}, use_bin_type=True), 
                 callback=delivery_report,
@@ -176,17 +186,13 @@ class AnomalyDetector():
 
         logging.debug('produced anomalous report')
         # Trigger any available delivery report callbacks from previous produce() calls
-        producer.poll(0)
+        self.producer.poll(0)
 
 
 if __name__ == "__main__":
     if len(sys.argv)<2:
         print("usage: %s config_file" % sys.argv[0])
         sys.exit()
-
-    FORMAT = '%(asctime)s %(processName)s %(message)s'
-    logging.basicConfig(format=FORMAT, filename='ihr-kafka-detector.log', level=logging.DEBUG, datefmt='%Y-%m-%d %H:%M:%S')
-    logging.warning("Started: %s" % sys.argv)
 
     conf_fname = sys.argv[1]
     detector = AnomalyDetector(conf_fname)
