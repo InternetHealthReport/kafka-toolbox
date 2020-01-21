@@ -2,6 +2,7 @@ import sys
 from collections import defaultdict
 import configparser
 import logging
+from logging.config import fileConfig
 from datetime import datetime
 import json
 import msgpack
@@ -52,10 +53,9 @@ class AnomalyDetector():
         self.history = defaultdict(lambda : {'values':[], 'timestamps':[]})
 
         # Initialize logger
-        FORMAT = '%(asctime)s %(processName)s %(message)s'
-        logging.basicConfig(format=FORMAT, filename=self.kafka_consumer_group+'.log', 
-                level=logging.WARNING, datefmt='%Y-%m-%d %H:%M:%S')
-        logging.warning("Started: %s" % sys.argv)
+        fileConfig(conf_fname)
+        logger = logging.getLogger()
+        logging.info("Started: {}".format(sys.argv))
 
         # Initialize kafka consumer
         self.consumer = Consumer({
@@ -66,7 +66,7 @@ class AnomalyDetector():
 
         self.consumer.subscribe([self.kafka_topic_in])
         self.detection_starttime = self.get_current_timestamp()
-        logging.debug('Detection starttime set to: {}'.format(self.detection_starttime))
+        logging.info('Detection starttime set to: {}'.format(self.detection_starttime))
 
         # Initialize kafka producer
         self.producer = Producer({'bootstrap.servers': 'kafka1:9092,kafka2:9092,kafka3:9092',
@@ -96,7 +96,7 @@ class AnomalyDetector():
         """Populate the history with data preceding the detection time."""
 
         history_starttime = int(self.detection_starttime - (self.history_hours*60*60*1000))
-        logging.debug('History starttime set to: {}'.format(history_starttime))
+        logging.info('History starttime set to: {}'.format(history_starttime))
         
         # Set offsets according to current data and history size
         topic_info = self.consumer.list_topics(self.kafka_topic_in)
@@ -106,7 +106,7 @@ class AnomalyDetector():
         for offset in self.consumer.offsets_for_times(partitions):
             self.consumer.seek(offset)
 
-        logging.warning('Fetching historical data...')
+        logging.info('Fetching historical data...')
         timestamp = 0
         while True:
             msg = self.consumer.poll()
@@ -133,7 +133,7 @@ class AnomalyDetector():
         Consume data from kafka topic, report anomalous datapoint, and update history.
         """
 
-        logging.warning('Starting detection with history for {} keys...'.format(len(self.history)))
+        logging.info('Starting detection with history for {} keys...'.format(len(self.history)))
 
         while True:
             msg = self.consumer.poll(10.0)
@@ -148,7 +148,7 @@ class AnomalyDetector():
             ts = msg.timestamp()
 
             key = ','.join(str(datapoint[keyf]) for keyf in self.key_field)
-            hist = self.history[datapoint[key]]
+            hist = self.history[key]
 
             # Remove outdated values from the history
             while len(hist['timestamps']) and hist['timestamps'][0] < ts[1]-self.history_hours*60*60*1000:
