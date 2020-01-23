@@ -4,6 +4,7 @@ import psycopg2.extras
 from pgcopy import CopyManager
 from confluent_kafka import Consumer 
 import logging
+from logging.config import fileConfig
 from collections import defaultdict
 import json
 import msgpack
@@ -46,6 +47,7 @@ class saverPostgresql(object):
 
         self.kafka_topic_in= config.get('kafka', 'input_topic')
         self.kafka_fields = [key for key in config.get('kafka', 'fields').split(',')]
+        self.kafka_default_values = eval(config.get('kafka', 'default_values'))
         self.kafka_consumer_group = config.get('kafka', 'consumer_group')
 
         # Initialize logger
@@ -106,9 +108,11 @@ class saverPostgresql(object):
             if field in msg:
                 row.append(msg[field])
             elif field in msg['datapoint']:
-                row.append(cast(datapoint[field], field_type))
+                row.append(cast(msg['datapoint'][field], field_type))
+            elif field in self.kafka_default_values:
+                row.append(cast(self.kafka_default_values[field], field_type))
             else:
-                logging.error('Missing data: {}'.format(msg))
+                logging.error('Missing field {} in {}'.format(field, msg))
                 return 
 
         self.dataBuffer.append(row)
