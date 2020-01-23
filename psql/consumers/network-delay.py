@@ -97,10 +97,6 @@ class saverOutDelay(object):
             self.currenttimebin = datetime.utcfromtimestamp(msg['ts']) 
             logging.debug("start recording raclette results (ts={})".format(self.currenttimebin))
 
-        # FIXME: for now we ignore probes
-        if msg['startpoint'].startswith('PB') or msg['endpoint'].startswith('PB'):
-            return
-
         # Update seen locations
         new_locations = set([msg['startpoint'], msg['endpoint']]).difference(self.locations)
         if  new_locations:
@@ -109,11 +105,14 @@ class saverOutDelay(object):
                     VALUES (%s, %s, %s) RETURNING id'
             for loc in new_locations:
                 # TODO fix raclette timetracker to always give a family address 
+                name = None
                 try:
                     af = int(loc.rpartition('v')[2])
+                    name = loc[2:-2]
                 except ValueError:
                     af = 4
-                self.cursor.execute(insertQuery, (loc[:2], loc[2:-2], af))
+                    name = loc[2:]
+                self.cursor.execute(insertQuery, (loc[:2], name, af))
                 loc_id = self.cursor.fetchone()[0]
                 self.locations[loc] = loc_id
 
