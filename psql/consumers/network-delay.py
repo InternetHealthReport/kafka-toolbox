@@ -130,8 +130,8 @@ class saverOutDelay(object):
         Push buffered messages to the database and flush the buffer.
         """
 
-        if not self.data:
-            # Nothing to commit
+        if not self.data and len(self.data)<100000:
+            # Not enough data to commit
             return
 
         logging.warning("psql: start copy")

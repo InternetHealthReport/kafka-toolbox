@@ -11,19 +11,6 @@ import msgpack
 from datetime import datetime
 import configparser
 
-def cast(value, type):
-    """Return the given value in the given type.
-
-    For example, cast('213', 'int') returns 213"""
-
-    if type == 'int':
-        return int(value)
-    elif type == 'float':
-        return float(value)
-    elif type == 'str':
-        return str(value)
-    elif type == 'datetime':
-        return datetime.utcfromtimestamp(value)
     
 class saverPostgresql(object):
     """Dumps data from kafka topic to a Postgresql database. """
@@ -55,7 +42,6 @@ class saverPostgresql(object):
         logger = logging.getLogger()
         logging.info("Started: {}".format(sys.argv))
 
-
         # Connect to PostgreSQL
         conn_string = "host='{}' dbname='{}'".format(self.psql_host, self.psql_dbname)
         self.conn = psycopg2.connect(conn_string)
@@ -71,6 +57,37 @@ class saverPostgresql(object):
             })
 
         self.consumer.subscribe([self.kafka_topic_in])
+
+        # Load external data
+        self.locations = None
+        if 'atlas_location' in self.psql_columns_type:
+            self.loadAtlasLocations()
+
+    def loadAtlasLocations(self):
+        """Fetch the unique id of each location"""
+
+        self.cursor.execute("SELECT id, name, type, af FROM ihr_atlas_location")
+        self.locations = {'{}{}v{}'.format(x[2],x[1],x[3]): x[0] for x in self.cursor.fetchall() }
+        logging.debug("%s locations registered in the database" % len(self.locations))
+
+    def cast(self, value, type):
+        """Return the given value in the given type.
+
+        For example, cast('213', 'int') returns 213"""
+
+        if type == 'int':
+            return int(value)
+        elif type == 'float':
+            return float(value)
+        elif type == 'str':
+            return str(value)
+        elif type == 'datetime':
+            return datetime.utcfromtimestamp(value)
+        elif type == 'atlas_location':
+            if value.endswith('v4') or value.endswith('v6'):
+                return self.locations[value]
+            else:
+                return self.locations[value+'v4']
 
 
     def run(self):
@@ -98,7 +115,7 @@ class saverPostgresql(object):
         """
 
         # Update the current bin timestamp
-        if self.prevts != ts:
+        if self.prevts < ts:
             self.commit()
             self.prevts = ts
             logging.debug("start recording")
@@ -108,9 +125,9 @@ class saverPostgresql(object):
             if field in msg:
                 row.append(msg[field])
             elif field in msg['datapoint']:
-                row.append(cast(msg['datapoint'][field], field_type))
+                row.append(self.cast(msg['datapoint'][field], field_type))
             elif field in self.kafka_default_values:
-                row.append(cast(self.kafka_default_values[field], field_type))
+                row.append(self.cast(self.kafka_default_values[field], field_type))
             else:
                 logging.error('Missing field {} in {}'.format(field, msg))
                 return 
@@ -130,6 +147,10 @@ class saverPostgresql(object):
         self.conn.commit()
         logging.warning("psql: end copy")
         self.dataBuffer = []
+
+        if self.locations is not None:
+            # Reload new locations
+            self.loadAtlasLocations()
 
 
 if __name__ == "__main__":
