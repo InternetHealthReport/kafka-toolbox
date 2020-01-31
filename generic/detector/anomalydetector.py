@@ -40,7 +40,7 @@ class AnomalyDetector():
 
         self.detection_threshold = config.getfloat('detection', 'threshold')
         self.detection_min_dev = config.getfloat('detection', 'min_dev')
-        self.detection_dev_metric = config.getfloat('detection', 'dev_metric')
+        self.detection_dev_metric = config.get('detection', 'dev_metric')
         self.history_hours = config.getfloat('detection', 'history_hours')
         self.history_min_ratio = config.getfloat('detection', 'history_min_ratio')
 
