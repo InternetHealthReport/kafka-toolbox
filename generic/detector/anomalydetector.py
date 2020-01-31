@@ -39,7 +39,8 @@ class AnomalyDetector():
         config.read(conf_fname)
 
         self.detection_threshold = config.getfloat('detection', 'threshold')
-        self.detection_noise = config.getfloat('detection', 'noise')
+        self.detection_min_dev = config.getfloat('detection', 'min_dev')
+        self.detection_dev_metric = config.getfloat('detection', 'dev_metric')
         self.history_hours = config.getfloat('detection', 'history_hours')
         self.history_min_ratio = config.getfloat('detection', 'history_min_ratio')
 
@@ -160,10 +161,16 @@ class AnomalyDetector():
 
                 # Compute detection boundaries
                 median = statistics.median(hist['values'])
-                mad = 1.4826*statistics.median([abs(x-median) for x in hist['values']])
+                if this.detection_dev_metric == 'median':
+                    dev = 1.4826*(
+                            self.detection_min_dev+statistics.median([abs(x-median) for x in hist['values']]))
+                else:
+                    dev = 1.4826*(
+                            self.detection_min_dev+statistics.mean([abs(x-median) for x in hist['values']]))
+
 
                 # Check if the new datapoint is within the boundaries
-                deviation = (datapoint[self.value_field] - median) / (mad*self.detection_threshold+median*self.detection_noise)
+                deviation = (datapoint[self.value_field] - median) / dev
                 if abs(deviation) > self.detection_threshold:
                     self.report_anomaly(ts[1], datapoint, deviation)
 
