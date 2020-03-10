@@ -133,7 +133,10 @@ class saverPostgresql(object):
             self.dataHege.append((self.currenttime, int(msg['scope']), int(msg['asn']), float(msg['hege']), self.af))
 
         # Compute Hegemony cone size
-        self.hegemonyCone[int(msg['asn'])] += 1
+        asn = int(msg['asn'])
+        scope = int(msg['scope'])
+        if asn != 0 and asn != scope:
+            self.hegemonyCone[asn] += 1
 
     def commit(self):
         """
