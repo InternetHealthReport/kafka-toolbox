@@ -135,8 +135,12 @@ class saverPostgresql(object):
         # Compute Hegemony cone size
         asn = int(msg['asn'])
         scope = int(msg['scope'])
-        if asn != 0 and asn != scope:
-            self.hegemonyCone[asn] += 1
+        inc = 1
+        if scope != 0 and asn != scope:
+            # ASes with empty cone are still stored
+            inc = 0
+
+        self.hegemonyCone[asn] += inc
 
     def commit(self):
         """
