@@ -161,7 +161,7 @@ class AnomalyDetector():
 
                 # Compute detection boundaries
                 median = statistics.median(hist['values'])
-                if this.detection_dev_metric == 'median':
+                if self.detection_dev_metric == 'median':
                     dev = 1.4826*(
                             self.detection_min_dev+statistics.median([abs(x-median) for x in hist['values']]))
                 else:
