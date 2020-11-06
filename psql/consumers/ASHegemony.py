@@ -136,7 +136,7 @@ class saverPostgresql(object):
         asn = int(msg['asn'])
         scope = int(msg['scope'])
         inc = 1
-        if scope == 0 or asn == scope:
+        if scope == 0 or asn == scope or msg['hege']==0:
             # ASes with empty cone are still stored
             inc = 0
 
