@@ -51,6 +51,7 @@ class saverPostgresql(object):
         while True:
             msg = self.consumer.poll(10.0)
             if msg is None:
+                self.commit()
                 continue
 
             if msg.error():
