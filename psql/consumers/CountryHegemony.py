@@ -20,6 +20,10 @@ class saverPostgresql(object):
         self.af = int(af)
         self.dataHege = [] 
         self.cpmgr = None
+        self.continents = {
+                'EU': 'European Union',
+                'AP': 'Asia-Pacific'
+                }
 
         conn_string = "host='127.0.0.1' dbname='%s'" % dbname
 
@@ -64,7 +68,7 @@ class saverPostgresql(object):
 
         self.cursor.execute("SELECT code FROM ihr_country")
         self.countries = set([x[0] for x in self.cursor.fetchall()])
-        logging.debug("%s counties registered in the database" % len(self.asns))
+        logging.debug("%s counties registered in the database" % len(self.countries))
 
 
     def save(self, msg):
@@ -85,8 +89,12 @@ class saverPostgresql(object):
 
         # Update seen ASNs
         if msg['cc'] not in self.countries:
-            self.countries.add(msg['scope'])
-            country_name = countries.get(msg.['cc']).name
+            self.countries.add(msg['cc'])
+            if msg['cc'] in self.continents:
+                country_name = self.continents[msg['cc']]
+            else:
+                country_name = countries.get(msg['cc']).name
+
             logging.warning("psql: add new country %s: %s" % (msg['cc'], country_name))
             self.cursor.execute(
                     "INSERT INTO ihr_country(code, name, tartiflette, disco ) \
@@ -97,7 +105,7 @@ class saverPostgresql(object):
         # Hegemony values to copy in the database
         if msg['hege']!= 0:
             self.dataHege.append((self.currenttime, msg['cc'], int(msg['asn']), 
-                float(msg['hege']), self.af, msg['original_weight'], msg['weight'].lowercase(), msg['transit_only']))
+                float(msg['hege']), self.af, msg['original_weight'], msg['weight'].lower(), msg['transit_only']))
 
 
     def commit(self):
