@@ -31,6 +31,7 @@ if __name__ == '__main__':
     if offset<0 and args.num_msg==1:
         sys.exit('Empty topic')
     elif offset < 0:
+        print("reading the entire topic")
         consumer.seek_to_beginning()
     else:
         consumer.seek(partition, offset)
