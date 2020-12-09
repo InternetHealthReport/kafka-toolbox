@@ -81,12 +81,15 @@ def pushData(record_type, collector, startts, endts):
 
         recordTimeStamp = int(rec.time*1000)
 
+        if completeRecord['rec']["status"] != 'valid':
+            return False, completeRecord
+
         for elem in rec:
             elementDict = getElementDict(elem)
             completeRecord["elements"].append(elementDict)
 
         producer.produce(
-                topic, 
+                "test", 
                 msgpack.packb(completeRecord, use_bin_type=True), 
                 callback=delivery_report,
                 timestamp = recordTimeStamp
@@ -98,6 +101,7 @@ def pushData(record_type, collector, startts, endts):
     # Wait for any outstanding messages to be delivered and delivery report
     # callbacks to be triggered.
     producer.flush()
+    return True, None
 
 
 if __name__ == '__main__':
@@ -168,6 +172,10 @@ is given then it download data for the current hour."
     logging.warning('start time: {}, end time: {}'.format(timeStart, timeEnd))
 
     logging.warning("Downloading {} data for {}".format(recordType, collector))
-    pushData(recordType, collector, timeStart, timeEnd)
+    while True:
+        # Loop for ever
+        ok, rec = pushData(recordType, collector, timeStart, timeEnd)
+        if not ok:
+            logging.error("Problem occured with BGPstream: {}".format(rec))
         
     logging.warning("End: %s" % sys.argv)

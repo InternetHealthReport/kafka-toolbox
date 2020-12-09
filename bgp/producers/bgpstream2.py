@@ -141,7 +141,7 @@ is given then it download data for the current hour."
         timeStart = args.startTime
     else:
         if recordType == 'updates':
-            timeStart = currentTime.replace(microsecond=0, second=0, minute=minuteStart)-timedelta(minutes=2*timeWindow)
+            timeStart = currentTime.replace(microsecond=0, second=0, minute=minuteStart)-timedelta(minutes=3*timeWindow)
         else:
             delay = 120
             if 'rrc' in collector:
@@ -154,7 +154,7 @@ is given then it download data for the current hour."
         timeEnd = args.endTime
     else:
         if recordType == 'updates':
-            timeEnd = currentTime.replace(microsecond=0, second=0, minute=minuteStart)-timedelta(minutes=1*timeWindow)
+            timeEnd = currentTime.replace(microsecond=0, second=0, minute=minuteStart)-timedelta(minutes=2*timeWindow)
         else:
             timeEnd = currentTime
 
