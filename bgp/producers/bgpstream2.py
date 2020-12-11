@@ -75,7 +75,7 @@ def pushData(record_type, collector, startts, endts):
         # 'linger.ms': 1000, 
         'default.topic.config': {'compression.codec': 'snappy'}}) 
     
-    for rec in stream.records():
+    for i, rec in enumerate(stream.records()):
         completeRecord = {}
         completeRecord["rec"] = getRecordDict(rec)
         completeRecord["elements"] = []
@@ -86,20 +86,32 @@ def pushData(record_type, collector, startts, endts):
             elementDict = getElementDict(elem)
             completeRecord["elements"].append(elementDict)
 
-        producer.produce(
+        try:
+            producer.produce(
                 topic, 
                 msgpack.packb(completeRecord, use_bin_type=True), 
                 callback=delivery_report,
                 timestamp = recordTimeStamp
                 )
 
-        # Trigger any available delivery report callbacks from previous produce() calls
-        producer.poll(0)
+            # Trigger any available delivery report callbacks from previous produce() calls
+            producer.poll(0)
+        except BufferError:
+            logging.warning('Buffer error, the queue must be full! Flushing...')
+            producer.flush()
 
-        # Wait for any outstanding messages to be delivered and delivery report
-        # callbacks to be triggered.
-        producer.flush()
+            logging.info('Queue flushed, will write the message again')
+            producer.produce(
+                topic, 
+                msgpack.packb(completeRecord, use_bin_type=True), 
+                callback=delivery_report,
+                timestamp = recordTimeStamp
+            )
+            producer.poll(0)
 
+    # Wait for any outstanding messages to be delivered and delivery report
+    # callbacks to be triggered.
+    producer.flush()
 
 if __name__ == '__main__':
 
