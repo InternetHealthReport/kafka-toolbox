@@ -96,9 +96,9 @@ def pushData(record_type, collector, startts, endts):
         # Trigger any available delivery report callbacks from previous produce() calls
         producer.poll(0)
 
-    # Wait for any outstanding messages to be delivered and delivery report
-    # callbacks to be triggered.
-    producer.flush()
+        # Wait for any outstanding messages to be delivered and delivery report
+        # callbacks to be triggered.
+        producer.flush()
 
 
 if __name__ == '__main__':
