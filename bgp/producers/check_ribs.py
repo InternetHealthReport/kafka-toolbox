@@ -1,4 +1,5 @@
 import os
+import time
 import msgpack 
 import arrow
 from kafka import KafkaConsumer
@@ -92,5 +93,5 @@ if __name__ == '__main__':
         if not updates:
             break
         elif i != NB_RETRY-1:
-            os.sleep(900)
+            time.sleep(900)
 

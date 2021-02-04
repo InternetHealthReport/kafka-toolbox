@@ -183,6 +183,21 @@ if __name__ == '__main__':
 
                     except KeyError:
                         logging.error('Ignoring one traceroute: {}'.format(traceroute))
+                    except BufferError:
+                        logging.error('Local queue is full ')
+                        producer.flush()
+                        producer.produce(
+                                topic, 
+                                msgpack.packb(traceroute, use_bin_type=True), 
+                                traceroute['msm_id'].to_bytes(8, byteorder='big'),
+                                callback=delivery_report,
+                                timestamp = traceroute.get('timestamp')*1000
+                                )
+
+                        # Trigger any available delivery report callbacks from previous produce() calls
+                        producer.poll(0)
+
+
             else:
                 logging.error("Error could not load the data")
 
