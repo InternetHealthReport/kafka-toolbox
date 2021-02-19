@@ -151,6 +151,11 @@ if __name__ == '__main__':
     # Create producer
     producer = Producer({'bootstrap.servers': 'kafka1:9092,kafka2:9092,kafka3:9092',
         # 'linger.ms': 1000, 
+        'queue.buffering.max.messages': 10000000,
+        'queue.buffering.max.kbytes': 2097151,
+        'linger.ms': 200,
+        'batch.num.messages': 1000000,
+        'message.max.bytes': 999000,
         'default.topic.config': {'compression.codec': 'snappy'}}) 
 
     # Fetch data from RIPE
