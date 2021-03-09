@@ -8,6 +8,7 @@ from collections import defaultdict
 import json
 import msgpack
 from datetime import datetime
+import arrow
 
 def validASN(asn):
     if isinstance(asn,int):
@@ -23,7 +24,7 @@ def validASN(asn):
 class saverPostgresql(object):
     """Dumps hegemony results to a Postgresql database. """
 
-    def __init__(self, af, host="localhost", dbname="ihr"):
+    def __init__(self, af, start, host="localhost", dbname="ihr"):
 
         self.prevts = 0 
         # TODO: get names from Kafka 
@@ -50,8 +51,21 @@ class saverPostgresql(object):
             'fetch.min.bytes': 100000,
             })
 
-        self.consumer.subscribe(['ihr_hegemony'])
-        self.partitions = None
+        if start is None:
+            self.consumer.subscribe(['ihr_hegemony'])
+            self.partitions = None
+        else:
+            timestamp = arrow.get(start).timestamp
+            timestamp_ms = timestamp * 1000
+            partitions = []
+            topic_info = consumer.list_topics(args.topic)
+            partitions = [TopicPartition(args.topic, partition_id, timestamp_ms) 
+                    for partition_id in  topic_info.topics[args.topic].partitions.keys()]
+
+            self.partitions = consumer.offsets_for_times( partitions )
+            consumer.assign(self.partitions)
+
+
         self.partition_paused = 0
         self.buffer = []
 
@@ -68,6 +82,7 @@ class saverPostgresql(object):
 
             if self.partitions is None:
                 self.partitions = self.consumer.assignment()
+
             if msg is None:
                 continue
 
@@ -194,7 +209,7 @@ class saverPostgresql(object):
 
 if __name__ == "__main__":
     if len(sys.argv)<2:
-        print("usage: %s af" % sys.argv[0])
+        print("usage: %s af [starttime]" % sys.argv[0])
         sys.exit()
 
     FORMAT = '%(asctime)s %(processName)s %(message)s'
@@ -202,6 +217,10 @@ if __name__ == "__main__":
     logging.warning("Started: %s" % sys.argv)
 
     af = int(sys.argv[1])
-    ss = saverPostgresql(af)
+    start = None
+    if len()sys.argv) > 2:
+        start = int(sys.argv[2])
+
+    ss = saverPostgresql(af, None)
     ss.run()
 
