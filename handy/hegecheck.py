@@ -27,7 +27,7 @@ if __name__ == '__main__':
         'auto.offset.reset': 'earliest'
     })
 
-    timestamp = arrow.get(args.timebin).timestamp
+    timestamp = arrow.get(args.timebin).timestamp()
     timestamp_ms = timestamp * 1000
     nb_stopped_partitions = 0
     partitions = []
