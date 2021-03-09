@@ -2,7 +2,7 @@ import sys
 import psycopg2
 import psycopg2.extras
 from pgcopy import CopyManager
-from confluent_kafka import Consumer, TopicPartition, KafkaError
+from confluent_kafka import Consumer 
 import logging
 from collections import defaultdict
 import json
@@ -31,8 +31,6 @@ class saverPostgresql(object):
         self.af = int(af)
         self.dataHege = [] 
         self.hegemonyCone = defaultdict(int)
-        self.partition_total = 0
-        self.partition_paused = 0
         self.cpmgr = None
 
         conn_string = "host='127.0.0.1' dbname='%s'" % dbname
@@ -45,16 +43,11 @@ class saverPostgresql(object):
 
         self.consumer = Consumer({
             'bootstrap.servers': 'kafka1:9092, kafka2:9092, kafka3:9092',
-            'group.id': 'ihr_psql_sink_ipv{}'.format(self.af),
+            'group.id': 'ihr_hegemony_values_psql_sink_ipv{}'.format(self.af),
             'auto.offset.reset': 'earliest',
-            'fetch.min.bytes': 100000,
             })
 
-        self.consumer.subscribe(['ihr_hegemony'])
-        self.partitions = None
-        self.partition_paused = 0
-        self.buffer = []
-
+        self.consumer.subscribe(['ihr_hegemony_values_ipv{}'.format(self.af)])
 
         self.updateASN()
 
@@ -65,9 +58,6 @@ class saverPostgresql(object):
 
         while True:
             msg = self.consumer.poll(10.0)
-
-            if self.partitions is None:
-                self.partitions = self.consumer.assignment()
             if msg is None:
                 continue
 
@@ -77,27 +67,16 @@ class saverPostgresql(object):
 
             msg_val = msgpack.unpackb(msg.value(), raw=False)
 
-            # Update the current bin timestamp
-            if self.prevts != msg_val['timestamp']:
+            if not validASN(msg_val['asn']):
+                if (isinstance(msg_val['asn'], str) 
+                    and msg_val['asn'].startswith('{')
+                    and msg_val['asn'].endswith('{')):
 
-                self.consumer.pause([TopicPartition(msg.topic(), msg.partition())])
-                self.partition_paused += 1
-                self.buffer.append(msg_val)
-
-                # all partition are paused, commit data
-                if self.partition_paused == len(self.partitions):
-                    self.commit()
-                    self.prevts = msg_val['timestamp']
-                    self.currenttime = datetime.utcfromtimestamp(msg_val['timestamp'])
-
-                    # process buffer's messages
-                    for msg_buf in self.buffer:
-                        self.save(msg_buf)
-                    self.buffer = []
-
-                    # resume all partition
-                    self.partition_paused = 0
-                    self.consumer.resume(self.partitions)
+                    # This is an AS set, push results for each ASN in the set
+                        for asn in msg_val['asn'][1:-1].split(','):
+                            if validASN(asn):
+                                msg_val['asn'] = asn
+                                self.save(msg_val)
 
             else:
                 self.save(msg_val)
@@ -117,9 +96,16 @@ class saverPostgresql(object):
         Buffer the given message and  make sure corresponding ASNs are 
         registered in the database.
         """
-        
-        if msg['scope'] == '-1':
-            msg['scope'] = '0'
+
+        if 'ts' not in msg:
+            print(msg)
+        # Update the current bin timestamp
+        if self.prevts != msg['ts']:
+            self.commit()
+            self.prevts = msg['ts']
+            self.currenttime = datetime.utcfromtimestamp(msg['ts'])
+            logging.debug("start recording hegemony")
+
 
         # Update seen ASNs
         if int(msg['scope']) not in self.asns:
@@ -132,30 +118,29 @@ class saverPostgresql(object):
                             (msg['scope'], self.asNames["AS"+str(msg['scope'])], msg['scope']))
             self.cursor.execute("UPDATE ihr_asn SET ashash = TRUE where number = %s", (int(msg['scope']),))
 
-        for asn, hege in msg['scope_hegemony'].items():
-            if int(asn) not in self.asns:
-                self.asns.add(int(asn))
-                logging.warning("psql: add new asn %s" % asn)
-                self.cursor.execute(
-                        "INSERT INTO ihr_asn(number, name, tartiflette, disco, ashash) \
-                                select %s, %s, FALSE, FALSE, TRUE \
-                                WHERE NOT EXISTS ( SELECT number FROM ihr_asn WHERE number = %s)", 
-                                (asn, self.asNames["AS"+str(asn)], asn))
-                self.cursor.execute("UPDATE ihr_asn SET ashash = TRUE where number = %s", (int(asn),))
+        if int(msg['asn']) not in self.asns:
+            self.asns.add(int(msg['asn']))
+            logging.warning("psql: add new asn %s" % msg['asn'])
+            self.cursor.execute(
+                    "INSERT INTO ihr_asn(number, name, tartiflette, disco, ashash) \
+                            select %s, %s, FALSE, FALSE, TRUE \
+                            WHERE NOT EXISTS ( SELECT number FROM ihr_asn WHERE number = %s)", 
+                            (msg['asn'], self.asNames["AS"+str(msg['asn'])], msg['asn']))
+            self.cursor.execute("UPDATE ihr_asn SET ashash = TRUE where number = %s", (int(msg['asn']),))
 
-            # Hegemony values to copy in the database
-            if hege!= 0:
-                self.dataHege.append((self.currenttime, int(msg['scope']), int(asn), float(hege), self.af))
+        # Hegemony values to copy in the database
+        if msg['hege']!= 0:
+            self.dataHege.append((self.currenttime, int(msg['scope']), int(msg['asn']), float(msg['hege']), self.af))
 
-            # Compute Hegemony cone size
-            asn = int(asn)
-            scope = int(msg['scope'])
-            inc = 1
-            if scope == -1 or asn == scope or hege==0:
-                # ASes with empty cone are still stored
-                inc = 0
+        # Compute Hegemony cone size
+        asn = int(msg['asn'])
+        scope = int(msg['scope'])
+        inc = 1
+        if scope == 0 or asn == scope or msg['hege']==0:
+            # ASes with empty cone are still stored
+            inc = 0
 
-            self.hegemonyCone[asn] += inc
+        self.hegemonyCone[asn] += inc
 
     def commit(self):
         """
@@ -165,7 +150,7 @@ class saverPostgresql(object):
         if len(self.dataHege) == 0:
             return
 
-        logging.warning(f"psql: start copy, ts={self.currenttime}, nb. data points={len(self.dataHege)}")
+        logging.warning("psql: start copy")
         self.cpmgr.copy(self.dataHege)
         self.conn.commit()
         logging.warning("psql: end copy")
