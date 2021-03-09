@@ -40,7 +40,7 @@ class saverPostgresql(object):
 
         self.conn = psycopg2.connect(conn_string)
         columns=("timebin", "originasn_id", "asn_id", "hege", "af")
-        self.cpmgr = CopyManager(self.conn,topic, columns)
+        self.cpmgr = CopyManager(self.conn, "ihr_hegemony", columns)
         self.cursor = self.conn.cursor()
         logging.debug("Connected to the PostgreSQL server")
 
