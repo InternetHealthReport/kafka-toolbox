@@ -215,7 +215,7 @@ if __name__ == "__main__":
     logging.basicConfig(format=FORMAT, filename='ihr-kafka-psql-ASHegemony.log', level=logging.WARN, datefmt='%Y-%m-%d %H:%M:%S')
     logging.warning("Started: %s" % sys.argv)
 
-    topic = int(sys.argv[1])
+    topic = sys.argv[1]
     af = int(sys.argv[2])
     start = None
     if len(sys.argv) > 3:
