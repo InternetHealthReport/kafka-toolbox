@@ -24,7 +24,7 @@ def validASN(asn):
 class saverPostgresql(object):
     """Dumps hegemony results to a Postgresql database. """
 
-    def __init__(self, af, start, host="localhost", dbname="ihr"):
+    def __init__(self, topic, af, start=None, host="localhost", dbname="ihr"):
 
         self.prevts = 0 
         # TODO: get names from Kafka 
@@ -40,7 +40,7 @@ class saverPostgresql(object):
 
         self.conn = psycopg2.connect(conn_string)
         columns=("timebin", "originasn_id", "asn_id", "hege", "af")
-        self.cpmgr = CopyManager(self.conn, 'ihr_hegemony', columns)
+        self.cpmgr = CopyManager(self.conn,topic, columns)
         self.cursor = self.conn.cursor()
         logging.debug("Connected to the PostgreSQL server")
 
@@ -52,18 +52,17 @@ class saverPostgresql(object):
             })
 
         if start is None:
-            self.consumer.subscribe(['ihr_hegemony'])
+            self.consumer.subscribe([topic])
             self.partitions = None
         else:
-            timestamp = arrow.get(start).timestamp
+            timestamp = int(arrow.get(start).timestamp())
             timestamp_ms = timestamp * 1000
-            partitions = []
-            topic_info = consumer.list_topics(args.topic)
-            partitions = [TopicPartition(args.topic, partition_id, timestamp_ms) 
-                    for partition_id in  topic_info.topics[args.topic].partitions.keys()]
+            topic_info = self.consumer.list_topics(topic)
+            partitions = [TopicPartition(topic, partition_id, timestamp_ms) 
+                    for partition_id in  topic_info.topics[topic].partitions.keys()]
 
-            self.partitions = consumer.offsets_for_times( partitions )
-            consumer.assign(self.partitions)
+            self.partitions = self.consumer.offsets_for_times( partitions )
+            self.consumer.assign(self.partitions)
 
 
         self.partition_paused = 0
@@ -209,18 +208,19 @@ class saverPostgresql(object):
 
 if __name__ == "__main__":
     if len(sys.argv)<2:
-        print("usage: %s af [starttime]" % sys.argv[0])
+        print("usage: %s topic af [starttime]" % sys.argv[0])
         sys.exit()
 
     FORMAT = '%(asctime)s %(processName)s %(message)s'
     logging.basicConfig(format=FORMAT, filename='ihr-kafka-psql-ASHegemony.log', level=logging.WARN, datefmt='%Y-%m-%d %H:%M:%S')
     logging.warning("Started: %s" % sys.argv)
 
-    af = int(sys.argv[1])
+    topic = int(sys.argv[1])
+    af = int(sys.argv[2])
     start = None
-    if len()sys.argv) > 2:
-        start = int(sys.argv[2])
+    if len(sys.argv) > 3:
+        start = sys.argv[3]
 
-    ss = saverPostgresql(af, None)
+    ss = saverPostgresql(topic, af, start)
     ss.run()
 
