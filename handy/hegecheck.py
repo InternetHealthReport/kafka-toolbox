@@ -1,4 +1,5 @@
 import sys
+from collections import defaultdict
 import msgpack 
 import argparse
 import arrow
@@ -20,14 +21,11 @@ if __name__ == '__main__':
     consumer = Consumer({
         'bootstrap.servers': args.server,
         'group.id': 'ihr_hegecheck',
-        'session.timeout.ms': 600000,
-        'max.poll.interval.ms': 600000,
-        'fetch.min.bytes': 100000,
         'enable.auto.commit': False,
         'auto.offset.reset': 'earliest'
     })
 
-    timestamp = arrow.get(args.timebin).timestamp()
+    timestamp = int(arrow.get(args.timebin).timestamp())
     timestamp_ms = timestamp * 1000
     nb_stopped_partitions = 0
     partitions = []
@@ -39,10 +37,11 @@ if __name__ == '__main__':
     consumer.assign(time_offset)
 
     i = 0
-    scopes = set()
+    scopes = defaultdict(set)
     asns = set()
     pairs = set()
     nb_messages = 0
+    global_graph_size = 0
     while True:
 
         bmsg = consumer.poll(1000)
@@ -68,19 +67,22 @@ if __name__ == '__main__':
 
         nb_messages += 1
         msg = msgpack.unpackb(bmsg.value(), raw=False)
-        scopes.add(msg['scope']) 
+        scopes[bmsg.partition()].add(msg['scope']) 
         for asn in msg['scope_hegemony'].keys():
             asns.add(asn)
             pairs.add( (msg['scope'], asn) )
 
-        if msg['scope'] == '24255':
-            print(msg)
+        if msg['scope'] == '-1':
+            print('global')
+            global_graph_size += len(msg['scope_hegemony'])
 
     consumer.close()
 
     print(f"Stats for timebin {args.timebin}")
     print(f'\t- nb. messages: {nb_messages}')
-    print(f'\t- nb. scopes: {len(scopes)}')
+    for part, pscopes in scopes.items():
+        print(f'\t- nb. scopes {part}: {len(pscopes)}')
+    print(f'\t- global graph: {global_graph_size}')
     print(f'\t- nb. asns: {len(asns)}')
     print(f'\t- nb. pairs (scope, asn): {len(pairs)}')
 
