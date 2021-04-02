@@ -27,7 +27,7 @@ if __name__ == '__main__':
         'auto.offset.reset': 'earliest'
     })
 
-    timestamp = arrow.get(args.timebin).timestamp()
+    timestamp = int(arrow.get(args.timebin).timestamp())
     timestamp_ms = timestamp * 1000
     nb_stopped_partitions = 0
     partitions = []
@@ -43,6 +43,7 @@ if __name__ == '__main__':
     asns = set()
     pairs = set()
     nb_messages = 0
+    global_graph = set()
     while True:
 
         bmsg = consumer.poll(1000)
@@ -73,8 +74,9 @@ if __name__ == '__main__':
             asns.add(asn)
             pairs.add( (msg['scope'], asn) )
 
-        if msg['scope'] == '24255':
-            print(msg)
+            if msg['scope'] == '-1':
+                global_graph.add(asn)
+
 
     consumer.close()
 
@@ -82,5 +84,6 @@ if __name__ == '__main__':
     print(f'\t- nb. messages: {nb_messages}')
     print(f'\t- nb. scopes: {len(scopes)}')
     print(f'\t- nb. asns: {len(asns)}')
+    print(f'\t- global graph size: {len(global_graph)}')
     print(f'\t- nb. pairs (scope, asn): {len(pairs)}')
 
