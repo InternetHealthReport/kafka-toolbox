@@ -1,3 +1,6 @@
+# By default this script will push data for the current day and ignore data
+# for following days. It assumes that the data for the current day is ordered.
+
 import sys
 import psycopg2
 import psycopg2.extras
@@ -24,7 +27,7 @@ def validASN(asn):
 class saverPostgresql(object):
     """Dumps hegemony results to a Postgresql database. """
 
-    def __init__(self, topic, af, start=None, host="localhost", dbname="ihr"):
+    def __init__(self, topic, af, start, end, host="localhost", dbname="ihr"):
 
         self.prevts = 0 
         # TODO: get names from Kafka 
@@ -51,19 +54,17 @@ class saverPostgresql(object):
             'fetch.min.bytes': 100000,
             })
 
-        if start is None:
-            self.consumer.subscribe([topic])
-            self.partitions = None
-        else:
-            timestamp = int(arrow.get(start).timestamp())
-            timestamp_ms = timestamp * 1000
-            topic_info = self.consumer.list_topics(topic)
-            partitions = [TopicPartition(topic, partition_id, timestamp_ms) 
-                    for partition_id in  topic_info.topics[topic].partitions.keys()]
+        self.end_ts = int(end.timestamp())
+        self.start_ts = int(start.timestamp())
+        topic_info = self.consumer.list_topics(topic)
+        partitions = [TopicPartition(topic, partition_id, self.start_ts*1000) 
+                for partition_id in  topic_info.topics[topic].partitions.keys()]
 
-            self.partitions = self.consumer.offsets_for_times( partitions )
-            self.consumer.assign(self.partitions)
+        self.partitions = self.consumer.offsets_for_times( partitions )
+        self.consumer.assign(self.partitions)
 
+
+        logging.warning(f"Assigned to partitions: {self.partitions}")
 
         self.partition_paused = 0
         self.buffer = []
@@ -76,20 +77,30 @@ class saverPostgresql(object):
         Consume data from the kafka topic and save it to the database.
         """
 
-        while True:
-            msg = self.consumer.poll(10.0)
+        logging.warning("Start reading topic")
+        nb_timeout = 0
 
-            if self.partitions is None:
-                self.partitions = self.consumer.assignment()
+        while True:
+            msg = self.consumer.poll(60)
 
             if msg is None:
+                nb_timeout += 1
+                if nb_timeout > 60:
+                    logging.warning("Time out!")
+                    break
                 continue
 
             if msg.error():
                 logging.error("Consumer error: {}".format(msg.error()))
                 continue
 
+            nb_timeout = 0
             msg_val = msgpack.unpackb(msg.value(), raw=False)
+
+            # ignore data outside of the time window 
+            if ( msg_val['timestamp'] < self.start_ts 
+                    or msg_val['timestamp'] >= self.end_ts ):
+                continue
 
             # Update the current bin timestamp
             if self.prevts != msg_val['timestamp']:
@@ -116,6 +127,8 @@ class saverPostgresql(object):
             else:
                 self.save(msg_val)
 
+        self.commit()
+
     def updateASN(self):
         '''
         Get the list of ASNs from the database
@@ -135,7 +148,7 @@ class saverPostgresql(object):
         if msg['scope'] == '-1':
             msg['scope'] = '0'
 
-        # Update seen ASNs
+        # Add origin ASN in psql if needed
         if int(msg['scope']) not in self.asns:
             self.asns.add(int(msg['scope']))
             logging.warning("psql: add new scope %s" % msg['scope'])
@@ -146,30 +159,34 @@ class saverPostgresql(object):
                             (msg['scope'], self.asNames["AS"+str(msg['scope'])], msg['scope']))
             self.cursor.execute("UPDATE ihr_asn SET ashash = TRUE where number = %s", (int(msg['scope']),))
 
-        for asn, hege in msg['scope_hegemony'].items():
-            if int(asn) not in self.asns:
-                self.asns.add(int(asn))
-                logging.warning("psql: add new asn %s" % asn)
-                self.cursor.execute(
-                        "INSERT INTO ihr_asn(number, name, tartiflette, disco, ashash) \
-                                select %s, %s, FALSE, FALSE, TRUE \
-                                WHERE NOT EXISTS ( SELECT number FROM ihr_asn WHERE number = %s)", 
-                                (asn, self.asNames["AS"+str(asn)], asn))
-                self.cursor.execute("UPDATE ihr_asn SET ashash = TRUE where number = %s", (int(asn),))
+        
+        asn = msg['asn']
+        hege = msg['hege']
 
-            # Hegemony values to copy in the database
-            if hege!= 0:
-                self.dataHege.append((self.currenttime, int(msg['scope']), int(asn), float(hege), self.af))
+        # Add transit ASN in psql if needed
+        if int(asn) not in self.asns:
+            self.asns.add(int(asn))
+            logging.warning("psql: add new asn %s" % asn)
+            self.cursor.execute(
+                    "INSERT INTO ihr_asn(number, name, tartiflette, disco, ashash) \
+                            select %s, %s, FALSE, FALSE, TRUE \
+                            WHERE NOT EXISTS ( SELECT number FROM ihr_asn WHERE number = %s)", 
+                            (asn, self.asNames["AS"+str(asn)], asn))
+            self.cursor.execute("UPDATE ihr_asn SET ashash = TRUE where number = %s", (int(asn),))
 
-            # Compute Hegemony cone size
-            asn = int(asn)
-            scope = int(msg['scope'])
-            inc = 1
-            if scope == -1 or asn == scope or hege==0:
-                # ASes with empty cone are still stored
-                inc = 0
+        # Hegemony values to copy in the database
+        if hege!= 0:
+            self.dataHege.append((self.currenttime, int(msg['scope']), int(asn), float(hege), self.af))
 
-            self.hegemonyCone[asn] += inc
+        # Compute Hegemony cone size
+        asn = int(asn)
+        scope = int(msg['scope'])
+        inc = 1
+        if scope == -1 or scope == 0 or asn == scope or hege==0:
+            # ASes with empty cone are still stored
+            inc = 0
+
+        self.hegemonyCone[asn] += inc
 
     def commit(self):
         """
@@ -208,19 +225,27 @@ class saverPostgresql(object):
 
 if __name__ == "__main__":
     if len(sys.argv)<2:
-        print("usage: %s topic af [starttime]" % sys.argv[0])
+        print("usage: %s topic af [starttime endtime]" % sys.argv[0])
         sys.exit()
 
     FORMAT = '%(asctime)s %(processName)s %(message)s'
-    logging.basicConfig(format=FORMAT, filename='ihr-kafka-psql-ASHegemony.log', level=logging.WARN, datefmt='%Y-%m-%d %H:%M:%S')
-    logging.warning("Started: %s" % sys.argv)
+    logging.basicConfig(format=FORMAT, filename='ihr-kafka-psql-ASHegemony.log', level=logging.DEBUG, datefmt='%Y-%m-%d %H:%M:%S')
 
     topic = sys.argv[1]
     af = int(sys.argv[2])
-    start = None
-    if len(sys.argv) > 3:
-        start = sys.argv[3]
+    start = arrow.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    end = None
 
-    ss = saverPostgresql(topic, af, start)
+    if len(sys.argv) > 3:
+        start = arrow.get(sys.argv[3])
+        if len(sys.argv) > 4:
+            end = arrow.get(sys.argv[4])
+    else: 
+        end = start.shift(days=1)
+
+    logging.warning(f"Started: {sys.argv} {start} {end}")
+
+    ss = saverPostgresql(topic, af, start, end)
     ss.run()
 
+    logging.warning(f"Finished: {sys.argv} {start} {end}")
