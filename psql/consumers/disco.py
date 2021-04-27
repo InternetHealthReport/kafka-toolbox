@@ -36,6 +36,7 @@ class saverPostgresql(object):
             'group.id': 'ihr_disco_reconnect_psql_sink0',
             'auto.offset.reset': 'earliest',
             'enable.auto.commit': 'false',
+            'enable.auto.offset.store': 'false',
             })
         self.consumer_reconnect.subscribe(['ihr_disco_bursts{}_reconnect'.format(suffix)])
 
@@ -156,7 +157,7 @@ class saverPostgresql(object):
                 updatedRow = self.cursor.fetchone()
                 if updatedRow is None:
                     logging.error('Error couldnt update the row: {}'.format(msg))
-                    continue
+                    break
                 event_id = updatedRow[0]
 
                 # UPDATE corresponding probes
@@ -167,6 +168,9 @@ class saverPostgresql(object):
                                 WHERE event_id = %s AND probe_id = %s'
                         self.cursor.execute( updateQuery,
                                 (datetime.utcfromtimestamp(ts), event_id, probeid) )
+
+            # continue to read the topic only if there was no error
+            self.consumer_reconnect.store_offsets(msg_pck)
 
         self.conn.commit()
         self.consumer_reconnect.commit()
