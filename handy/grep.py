@@ -52,6 +52,8 @@ if __name__ == '__main__':
     parser.add_argument('--key', '-k', help='Key')
     parser.add_argument('--filter', '-f', help='comma-separated list of '
                                                'filters in format key=value')
+    parser.add_argument('--meta', '-m', action='store_true',
+                        help='Print message metadata')
     timestamp_group_desc = """Arguments for timestamp filtering. Use
                            --timestamp to filter for an exact match and
                            --start/--end to filter for a range. Exact and range
@@ -158,6 +160,9 @@ if __name__ == '__main__':
             if filtered:
                 continue
             nb_read += 1
+            if args.meta:
+                print(f'key: {msg.key()} timestamp: {msg.timestamp()} '
+                      f'partition: {msg.partition()} headers: {msg.headers()}')
             print(data)
             if args.num_msg is not None and nb_read >= args.num_msg:
                 break
