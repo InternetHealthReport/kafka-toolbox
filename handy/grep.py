@@ -1,5 +1,7 @@
 import argparse
+import sys
 from datetime import datetime, timezone
+
 import msgpack
 import confluent_kafka
 from confluent_kafka import Consumer, TopicPartition
@@ -11,21 +13,20 @@ partition_total = 0
 
 
 def parse_timestamp(arg: str) -> int:
-        ret = 0
-        if arg.isdigit():
-            if len(arg) == 10:
-                print('Assuming epoch timestamp in seconds.')
-                ret = int(arg) * 1000
-            elif len(arg) == 13:
-                print('Assuming epoch timestamp in milliseconds.')
-                ret = int(arg)
-            else:
-                raise ValueError('Unknown timestamp format: ' + arg)
+    if arg.isdigit():
+        if len(arg) == 10:
+            print('Assuming epoch timestamp in seconds.')
+            ret = int(arg) * 1000
+        elif len(arg) == 13:
+            print('Assuming epoch timestamp in milliseconds.')
+            ret = int(arg)
         else:
-            print('Assuming date timestamp with format %Y-%m-%dT%H:%M.')
-            ret = int(datetime.strptime(arg, '%Y-%m-%dT%H:%M')
-                      .replace(tzinfo=timezone.utc).timestamp()) * 1000
-        return ret
+            raise ValueError('Unknown timestamp format: ' + arg)
+    else:
+        print('Assuming date timestamp with format %Y-%m-%dT%H:%M.')
+        ret = int(datetime.strptime(arg, '%Y-%m-%dT%H:%M')
+                  .replace(tzinfo=timezone.utc).timestamp()) * 1000
+    return ret
 
 
 def on_assign(consumer: Consumer, partitions: list) -> None:
@@ -42,12 +43,12 @@ if __name__ == '__main__':
            possibility to apply filters."""
 
     parser = argparse.ArgumentParser(description=text)
-    parser.add_argument("--topic", "-t", help="Selected topic", required=True)
-    parser.add_argument("--num_msg", "-n", help="Number of messages to print",
+    parser.add_argument('--topic', '-t', help='Selected topic', required=True)
+    parser.add_argument('--num_msg', '-n', help='Number of messages to print',
                         type=int)
-    parser.add_argument("--server", "-s", help="Bootstrap server",
+    parser.add_argument('--server', '-s', help='Bootstrap server',
                         default='kafka1:9092')
-    parser.add_argument("--partition", "-p", help="Partition number", type=int)
+    parser.add_argument('--partition', '-p', help='Partition number', type=int)
     parser.add_argument('--key', '-k', help='Key')
     parser.add_argument('--filter', '-f', help='comma-separated list of '
                                                'filters in format key=value')
@@ -58,15 +59,14 @@ if __name__ == '__main__':
                            either one or both arguments. Timestamps can be
                            specified as UNIX epoch in (milli)seconds or in the
                            format '%Y-%m-%dT%H:%M'."""
-    timestamp_group = parser.add_argument_group('Timestamps', timestamp_group_desc)
-    timestamp_group.add_argument('--timestamp', '-ts', help='Timestamp for '
-                                                            'exact-match '
-                                                            'filtering')
-    timestamp_group.add_argument('--start', '-st', help='Start timestamp for '
-                                                        'range filtering')
-    timestamp_group.add_argument('--end', '-e', help='End timestamp for range '
-                                                     'filtering')
-
+    timestamp_group = parser.add_argument_group('Timestamps',
+                                                timestamp_group_desc)
+    timestamp_group.add_argument('--timestamp', '-ts',
+                                 help='Timestamp for  exact-match filtering')
+    timestamp_group.add_argument('--start', '-st',
+                                 help='Start timestamp for range filtering')
+    timestamp_group.add_argument('--end', '-e',
+                                 help='End timestamp for range filtering')
 
     args = parser.parse_args()
 
@@ -111,12 +111,11 @@ if __name__ == '__main__':
     if filter_dict:
         print('Applying filter:', filter_dict)
 
-
     c = Consumer({
         'bootstrap.servers': args.server,
         'group.id': 'ihr_grep',
         'auto.offset.reset': 'earliest',
-        })
+    })
     try:
         if partition:
             on_assign(c, [TopicPartition(args.topic, partition=partition)])
@@ -137,12 +136,12 @@ if __name__ == '__main__':
             if key is not None and msg.key() != key:
                 continue
             msg_ts = msg.timestamp()
-            if timestamp\
-                    and msg_ts[0] == confluent_kafka.TIMESTAMP_CREATE_TIME\
+            if timestamp \
+                    and msg_ts[0] == confluent_kafka.TIMESTAMP_CREATE_TIME \
                     and msg_ts[1] != timestamp:
                 continue
-            if end_ts != confluent_kafka.OFFSET_END\
-                    and msg_ts[0] == confluent_kafka.TIMESTAMP_CREATE_TIME\
+            if end_ts != confluent_kafka.OFFSET_END \
+                    and msg_ts[0] == confluent_kafka.TIMESTAMP_CREATE_TIME \
                     and msg_ts[1] >= end_ts:
                 c.pause([TopicPartition(msg.topic(), msg.partition())])
                 partition_paused += 1
@@ -152,7 +151,7 @@ if __name__ == '__main__':
             data = msgpack.unpackb(msg.value(), raw=False)
             filtered = False
             for filter_key in filter_dict:
-                if filter_key in data\
+                if filter_key in data \
                         and str(data[filter_key]) != filter_dict[filter_key]:
                     filtered = True
                     break
