@@ -47,7 +47,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_msg', '-n', help='Number of messages to print',
                         type=int)
     parser.add_argument('--server', '-s', help='Bootstrap server',
-                        default='kafka1:9092')
+                        default='localhost:9092')
     parser.add_argument('--partition', '-p', help='Partition number', type=int)
     parser.add_argument('--key', '-k', help='Key')
     parser.add_argument('--filter', '-f', help='comma-separated list of '
