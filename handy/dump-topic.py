@@ -136,7 +136,8 @@ def main() -> None:
     parser.add_argument('topic', metavar='TOPIC')
     parser.add_argument('-s', '--server', default='localhost:9092',
                         help='bootstrap server (default: localhost:9092)')
-    parser.add_argument('-o', '--output', help='specify output file')
+    parser.add_argument('-o', '--output', default='./',
+                        help='specify output directory (default: ./)')
     read_group_desc = """By using the --start and --end options, only a
                       specific range of TOPIC can be dumped. Either or both
                       options can be specified. Timestamps can be specified as 
@@ -153,9 +154,10 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    output = args.topic + '.pickle.bz2'
-    if args.output:
-        output = args.output
+    output_dir = args.output
+    if not output_dir.endswith('/'):
+        output_dir += '/'
+    output = output_dir + args.topic + '.pickle.bz2'
 
     if args.start:
         start_ts = parse_timestamp(args.start)
