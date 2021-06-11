@@ -138,13 +138,14 @@ if __name__ == '__main__':
             if key is not None and msg.key() != key:
                 continue
             msg_ts = msg.timestamp()
-            if timestamp \
-                    and msg_ts[0] == confluent_kafka.TIMESTAMP_CREATE_TIME \
-                    and msg_ts[1] != timestamp:
+            if msg_ts[0] != confluent_kafka.TIMESTAMP_CREATE_TIME:
+                print("Skipped message with invalid timestamp type.")
                 continue
-            if end_ts != confluent_kafka.OFFSET_END \
-                    and msg_ts[0] == confluent_kafka.TIMESTAMP_CREATE_TIME \
-                    and msg_ts[1] >= end_ts:
+            if timestamp and msg_ts[1] != timestamp:
+                continue
+            if msg_ts[1] < start_ts:
+                continue
+            if end_ts != confluent_kafka.OFFSET_END and msg_ts[1] >= end_ts:
                 c.pause([TopicPartition(msg.topic(), msg.partition())])
                 partition_paused += 1
                 if partition_paused < partition_total:

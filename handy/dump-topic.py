@@ -112,6 +112,8 @@ def dump_data(topic: str, bootstrap_server: str) -> list:
             if ts[0] != TIMESTAMP_CREATE_TIME:
                 print(f'Message has unexpected timestamp type: {ts[0]}')
                 continue
+            if ts[1] < start_ts:
+                continue
             if end_ts != OFFSET_END and ts[1] >= end_ts:
                 print(f'Partition {msg.partition()} reached end of specified '
                       f'time interval')
