@@ -41,7 +41,7 @@ if __name__ == '__main__':
     asns = set()
     pairs = set()
     nb_messages = 0
-    global_graph_size = 0
+    global_graph = set()
     while True:
 
         bmsg = consumer.poll(1000)
@@ -82,7 +82,7 @@ if __name__ == '__main__':
     print(f'\t- nb. messages: {nb_messages}')
     for part, pscopes in scopes.items():
         print(f'\t- nb. scopes {part}: {len(pscopes)}')
-    print(f'\t- global graph: {global_graph_size}')
+    print(f'\t- global graph size: {global_graph_size}')
     print(f'\t- nb. asns: {len(asns)}')
     print(f'\t- nb. pairs (scope, asn): {len(pairs)}')
 
