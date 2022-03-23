@@ -143,7 +143,7 @@ if __name__ == '__main__':
     FORMAT = '%(asctime)s %(processName)s %(message)s'
     logging.basicConfig(
         format=FORMAT, filename='ihr-kafka-netixlan.log',
-        level=logging.WARN, datefmt='%Y-%m-%d %H:%M:%S'
+        level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S'
         )
     logging.info("Started: %s" % sys.argv)
     logging.info("Arguments: %s" % args)

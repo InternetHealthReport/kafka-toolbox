@@ -88,7 +88,7 @@ class saverPostgresql(object):
             logging.debug("start recording country hegemony")
 
 
-        # Update seen ASNs
+        # Update seen countries
         if msg['cc'] not in self.countries:
             self.countries.add(msg['cc'])
             if msg['cc'] in self.continents:
