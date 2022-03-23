@@ -53,7 +53,7 @@ class AnomalyDetector():
         self.kafka_consumer_group = config.get('io', 'consumer_group')
 
         self.history = defaultdict(lambda : {'values':[], 'timestamps':[]})
-        self.job_duration = config.get('job', 'duration')
+        self.job_duration = config.getfloat('job', 'duration')
         self.stop_time = arrow.now().shift(minutes=self.job_duration)
 
         # Initialize logger
