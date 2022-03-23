@@ -6,7 +6,7 @@ from logging.config import fileConfig
 import arrow
 import msgpack
 import statistics
-from confluent_kafka import Consumer, Producer, TopicPartition, KafkaError
+from confluent_kafka import Consumer, Producer, TopicPartition
 import confluent_kafka
 
 # TODO: how to handle data holes?
@@ -20,7 +20,7 @@ def delivery_report(err, msg):
     """ Called once for each message produced to indicate delivery result.
         Triggered by poll() or flush(). """
     if err is not None:
-        logging.error('Message delivery failed: {}'.format(err))
+        logging.error('Message delivery failed: {}\n{}'.format(err, msg))
     else:
         # print('Message delivered to {} [{}]'.format(msg.topic(), msg.partition()))
         pass
@@ -58,7 +58,6 @@ class AnomalyDetector():
 
         # Initialize logger
         fileConfig(conf_fname)
-        logger = logging.getLogger()
         logging.info("Started: {}".format(sys.argv))
 
         # Initialize kafka consumer
@@ -111,7 +110,6 @@ class AnomalyDetector():
             self.consumer.seek(offset)
 
         logging.info('Fetching historical data...')
-        timestamp = 0
         while True:
             msg = self.consumer.poll()
 
