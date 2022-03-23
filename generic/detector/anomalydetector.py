@@ -40,7 +40,7 @@ class AnomalyDetector():
         # Detection parameters
         self.detection_threshold = config.getfloat('detection', 'threshold')
         self.detection_min_dev = config.getfloat('detection', 'min_dev')
-        self.detection_dev_metric = config.getfloat('detection', 'dev_metric')
+        self.detection_dev_metric = config.get('detection', 'dev_metric')
         self.history_hours = config.getfloat('detection', 'history_hours')
         self.history_min_ratio = config.getfloat('detection', 'history_min_ratio')
 
@@ -164,7 +164,7 @@ class AnomalyDetector():
 
                 # Compute detection boundaries
                 median = statistics.median(hist['values'])
-                if this.detection_dev_metric == 'median':
+                if self.detection_dev_metric == 'median':
                     dev = 1.4826*(
                             self.detection_min_dev+statistics.median([abs(x-median) for x in hist['values']]))
                 else:

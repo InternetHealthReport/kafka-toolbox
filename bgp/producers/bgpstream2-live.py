@@ -53,8 +53,7 @@ def getElementDict(element):
 def pushData(record_type, collector, startts, endts):
 
     stream = BGPStream(
-            from_time=str(startts), until_time=str(endts), collectors=[collector],
-            record_type=record_type
+            collectors=[collector], record_type=record_type, project='ris-live'
             )
 
     # Create kafka topic
@@ -73,50 +72,37 @@ def pushData(record_type, collector, startts, endts):
     # Create producer
     producer = Producer({'bootstrap.servers': 'kafka1:9092,kafka2:9092,kafka3:9092',
         # 'linger.ms': 1000, 
-        'queue.buffering.max.messages': 10000000,
-        'queue.buffering.max.kbytes': 2097151,
-        'linger.ms': 200,
-        'batch.num.messages': 1000000,
-        'message.max.bytes': 999000,
         'default.topic.config': {'compression.codec': 'snappy'}}) 
     
-    for i, rec in enumerate(stream.records()):
+    for rec in stream.records():
         completeRecord = {}
         completeRecord["rec"] = getRecordDict(rec)
         completeRecord["elements"] = []
 
         recordTimeStamp = int(rec.time*1000)
 
+        if completeRecord['rec']["status"] != 'valid':
+            return False, completeRecord
+
         for elem in rec:
             elementDict = getElementDict(elem)
             completeRecord["elements"].append(elementDict)
 
-        try:
-            producer.produce(
-                topic, 
+        producer.produce(
+                "test", 
                 msgpack.packb(completeRecord, use_bin_type=True), 
                 callback=delivery_report,
                 timestamp = recordTimeStamp
                 )
 
-            # Trigger any available delivery report callbacks from previous produce() calls
-            producer.poll(0)
-        except BufferError:
-            logging.warning('Buffer error, the queue must be full! Flushing...')
-            producer.flush()
-
-            logging.info('Queue flushed, will write the message again')
-            producer.produce(
-                topic, 
-                msgpack.packb(completeRecord, use_bin_type=True), 
-                callback=delivery_report,
-                timestamp = recordTimeStamp
-            )
-            producer.poll(0)
+        # Trigger any available delivery report callbacks from previous produce() calls
+        producer.poll(0)
 
     # Wait for any outstanding messages to be delivered and delivery report
     # callbacks to be triggered.
     producer.flush()
+    return True, None
+
 
 if __name__ == '__main__':
 
@@ -158,7 +144,7 @@ is given then it download data for the current hour."
         timeStart = args.startTime
     else:
         if recordType == 'updates':
-            timeStart = currentTime.replace(microsecond=0, second=0, minute=minuteStart)-timedelta(minutes=3*timeWindow)
+            timeStart = currentTime.replace(microsecond=0, second=0, minute=minuteStart)-timedelta(minutes=2*timeWindow)
         else:
             delay = 120
             if 'rrc' in collector:
@@ -171,7 +157,7 @@ is given then it download data for the current hour."
         timeEnd = args.endTime
     else:
         if recordType == 'updates':
-            timeEnd = currentTime.replace(microsecond=0, second=0, minute=minuteStart)-timedelta(minutes=2*timeWindow)
+            timeEnd = currentTime.replace(microsecond=0, second=0, minute=minuteStart)-timedelta(minutes=1*timeWindow)
         else:
             timeEnd = currentTime
 
@@ -186,6 +172,10 @@ is given then it download data for the current hour."
     logging.warning('start time: {}, end time: {}'.format(timeStart, timeEnd))
 
     logging.warning("Downloading {} data for {}".format(recordType, collector))
-    pushData(recordType, collector, timeStart, timeEnd)
+    while True:
+        # Loop for ever
+        ok, rec = pushData(recordType, collector, timeStart, timeEnd)
+        if not ok:
+            logging.error("Problem occured with BGPstream: {}".format(rec))
         
     logging.warning("End: %s" % sys.argv)

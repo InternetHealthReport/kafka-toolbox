@@ -121,16 +121,20 @@ class saverPostgresql(object):
             logging.debug("start recording")
 
         row = []
-        for field, field_type in zip(self.kafka_fields, self.psql_columns_type):
-            if field in msg:
-                row.append(msg[field])
-            elif field in msg['datapoint']:
-                row.append(self.cast(msg['datapoint'][field], field_type))
-            elif field in self.kafka_default_values:
-                row.append(self.cast(self.kafka_default_values[field], field_type))
-            else:
-                logging.error('Missing field {} in {}'.format(field, msg))
-                return 
+        try:
+            for field, field_type in zip(self.kafka_fields, self.psql_columns_type):
+                if field in msg:
+                    row.append(msg[field])
+                elif field in msg['datapoint']:
+                    row.append(self.cast(msg['datapoint'][field], field_type))
+                elif field in self.kafka_default_values:
+                    row.append(self.cast(self.kafka_default_values[field], field_type))
+                else:
+                    logging.error('Missing field {} in {}'.format(field, msg))
+                    return 
+        except ValueError:
+            logging.error("Error invalid values: {}".format(msg))
+            return
 
         self.dataBuffer.append(row)
 

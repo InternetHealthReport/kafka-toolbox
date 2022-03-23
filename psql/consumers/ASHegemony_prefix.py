@@ -12,6 +12,10 @@ import json
 import msgpack
 from datetime import datetime
 import arrow
+from rov import ROV
+from radix import Radix
+from iso3166 import countries
+from geolite_city import GeoliteCity
 
 def validASN(asn):
     if isinstance(asn,int):
@@ -42,14 +46,14 @@ class saverPostgresql(object):
         conn_string = "host='127.0.0.1' dbname='%s'" % dbname
 
         self.conn = psycopg2.connect(conn_string)
-        columns=("timebin", "originasn_id", "asn_id", "hege", "af")
-        self.cpmgr = CopyManager(self.conn, "ihr_hegemony", columns)
+        columns=("timebin", "prefix", "originasn_id", "asn_id", "country_id", "hege", "rpki_status", "irr_status", "delegated_prefix_status", "delegated_asn_status", "af", "descr", "visibility", "moas")
+        self.cpmgr = CopyManager(self.conn, "ihr_hegemony_prefix", columns)
         self.cursor = self.conn.cursor()
         logging.debug("Connected to the PostgreSQL server")
 
         self.consumer = Consumer({
             'bootstrap.servers': 'kafka1:9092, kafka2:9092, kafka3:9092',
-            'group.id': 'ihr_psql_sink_ipv{}'.format(self.af),
+            'group.id': 'ihr_psql_prefix_sink_ipv{}'.format(self.af),
             'auto.offset.reset': 'earliest',
             'fetch.min.bytes': 100000,
             })
@@ -63,14 +67,33 @@ class saverPostgresql(object):
         self.partitions = self.consumer.offsets_for_times( partitions )
         self.consumer.assign(self.partitions)
 
-
         logging.warning(f"Assigned to partitions: {self.partitions}")
 
         self.partition_paused = 0
         self.buffer = []
 
+        # Maxmind Geolite2
+        self.gc = GeoliteCity()
+        self.gc.download_database()
+        self.gc.load_database()
+        self.continents = {
+                'EU': 'European Union',
+                'AP': 'Asia-Pacific'
+                }
+
+        # Route origin validation
+        self.rov = ROV()
+        # Databases should be updated in a cron job
+        self.rov.load_databases()
+
+        # Radix tree to keep track of MOAS
+        self.rtree = Radix()
+
+        # total number of peers
+        self.nb_peers = 1
 
         self.updateASN()
+        self.updateCountries()
 
     def run(self):
         """
@@ -139,54 +162,100 @@ class saverPostgresql(object):
         logging.debug("%s ASNS already registered in the database" % len(self.asns))
 
 
+    def updateCountries(self):
+        '''
+        Get the list of countries from the database
+        '''
+
+        self.cursor.execute("SELECT code FROM ihr_country")
+        self.countries = set([x[0] for x in self.cursor.fetchall()])
+        logging.debug("%s counties registered in the database" % len(self.countries))
+
+
     def save(self, msg):
         """
         Buffer the given message and  make sure corresponding ASNs are 
         registered in the database.
         """
         
-        if msg['scope'] == '-1':
-            msg['scope'] = '0'
+        prefix, _, originasn_str = msg['scope'].partition('_')
+        originasn_list = [originasn_str]
+        if not validASN(originasn_str):
+            # this is an AS set
+            originasn_list = originasn_str[1:-1].split(',')
+            
+            
+        for originasn in originasn_list:
 
-        # Add origin ASN in psql if needed
-        if int(msg['scope']) not in self.asns:
-            self.asns.add(int(msg['scope']))
-            logging.warning("psql: add new scope %s" % msg['scope'])
-            self.cursor.execute(
-                    "INSERT INTO ihr_asn(number, name, tartiflette, disco, ashash) \
-                            select %s, %s, FALSE, FALSE, TRUE \
-                            WHERE NOT EXISTS ( SELECT number FROM ihr_asn WHERE number = %s)", 
-                            (msg['scope'], self.asNames["AS"+str(msg['scope'])], msg['scope']))
-            self.cursor.execute("UPDATE ihr_asn SET ashash = TRUE where number = %s", (int(msg['scope']),))
+            if originasn == '-1':
+                originasn = '0'
 
-        
-        asn = msg['asn']
-        hege = msg['hege']
+            # keep track of origin ASN
+            rnode = self.rtree.add(prefix)
+            if 'originasn' not in rnode.data:
+                rnode.data['originasn'] = set()
+            rnode.data['originasn'].add(originasn)
 
-        # Add transit ASN in psql if needed
-        if int(asn) not in self.asns:
-            self.asns.add(int(asn))
-            logging.warning("psql: add new asn %s" % asn)
-            self.cursor.execute(
-                    "INSERT INTO ihr_asn(number, name, tartiflette, disco, ashash) \
-                            select %s, %s, FALSE, FALSE, TRUE \
-                            WHERE NOT EXISTS ( SELECT number FROM ihr_asn WHERE number = %s)", 
-                            (asn, self.asNames["AS"+str(asn)], asn))
-            self.cursor.execute("UPDATE ihr_asn SET ashash = TRUE where number = %s", (int(asn),))
+            # update max number of peers
+            if msg['nb_peers'] > self.nb_peers:
+                self.nb_peers = msg['nb_peers']
 
-        # Hegemony values to copy in the database
-        if hege!= 0:
-            self.dataHege.append((self.currenttime, int(msg['scope']), int(asn), float(hege), self.af))
+            # Add origin ASN in psql if needed
+            if int(originasn) not in self.asns:
+                self.asns.add(int(originasn))
+                logging.warning("psql: add new scope %s" % originasn)
+                self.cursor.execute(
+                        "INSERT INTO ihr_asn(number, name, tartiflette, disco, ashash) \
+                                select %s, %s, FALSE, FALSE, FALSE \
+                                WHERE NOT EXISTS ( SELECT number FROM ihr_asn WHERE number = %s)", 
+                                (originasn, self.asNames["AS"+str(originasn)], originasn))
 
-        # Compute Hegemony cone size
-        asn = int(asn)
-        scope = int(msg['scope'])
-        inc = 1
-        if scope == -1 or scope == 0 or asn == scope or hege==0:
-            # ASes with empty cone are still stored
-            inc = 0
+            asn = msg['asn']
+            hege = msg['hege']
 
-        self.hegemonyCone[asn] += inc
+            # Add transit ASN in psql if needed
+            if int(asn) not in self.asns:
+                self.asns.add(int(asn))
+                logging.warning("psql: add new asn %s" % asn)
+                self.cursor.execute(
+                        "INSERT INTO ihr_asn(number, name, tartiflette, disco, ashash) \
+                                select %s, %s, FALSE, FALSE, FALSE \
+                                WHERE NOT EXISTS ( SELECT number FROM ihr_asn WHERE number = %s)", 
+                                (asn, self.asNames["AS"+str(asn)], asn))
+
+            # Hegemony values to copy in the database
+            if hege!= 0:
+            #("timebin", "prefix", "originasn_id", "asn_id", "country_id", "hege", 
+            # "rpki_status", "irr_status", "delegated_prefix_status", "delegated_asn_status", 
+            # "af", "descr", "visibility", "moas")
+                ip = prefix.partition('/')[0]
+                cc = self.gc.lookup(ip)
+
+                # Add country in psql if needed
+                if cc not in self.countries:
+                    self.countries.add(cc)
+                    if cc in self.continents:
+                        country_name = self.continents[cc]
+                    else:
+                        country_name = countries.get(cc).name
+
+                    logging.warning("psql: add new country %s: %s" % (cc, country_name))
+                    self.cursor.execute(
+                            "INSERT INTO ihr_country(code, name, tartiflette, disco ) \
+                                    select %s, %s, FALSE, FALSE \
+                                    WHERE NOT EXISTS ( SELECT code FROM ihr_country WHERE code = %s)", 
+                                    (cc, country_name, cc))
+
+                rov_check = self.rov.check(prefix, int(originasn))
+                descr = rov_check['irr'].get('descr', '')
+
+                self.dataHege.append([
+                    self.currenttime, prefix, int(originasn), int(asn), cc, float(hege), 
+                    rov_check['rpki']['status'], rov_check['irr']['status'], 
+                    rov_check['delegated']['prefix']['status'], rov_check['delegated']['asn']['status'], 
+                    self.af, descr, msg['nb_peers']
+                    ])
+
 
     def commit(self):
         """
@@ -196,31 +265,24 @@ class saverPostgresql(object):
         if len(self.dataHege) == 0:
             return
 
+        logging.warning(f"preparing for commit. Max # peers={self.nb_peers}")
+        # set visibility in percentage and add moas
+        for vec in self.dataHege:
+            vec[-1] = 100.0*(vec[-1]/self.nb_peers)
+            rnode = self.rtree.search_best(vec[1])
+            vec.append( len(rnode.data['originasn'])>1 )
+
         logging.warning(f"psql: start copy, ts={self.currenttime}, nb. data points={len(self.dataHege)}")
+        # copy data to database
         self.cpmgr.copy(self.dataHege)
         self.conn.commit()
         logging.warning("psql: end copy")
-        # Populate the table for AS hegemony cone
-        logging.warning("psql: adding hegemony cone")
         
-        data = [(self.currenttime, conesize, self.af, asn) 
-                for asn, conesize in self.hegemonyCone.items() ]
-        insert_query = 'INSERT INTO ihr_hegemonycone (timebin, conesize, af, asn_id) values %s'
-        psycopg2.extras.execute_values (
-            self.cursor, insert_query, data, template=None, page_size=100
-        )
-
-        # self.cursor.execute(
-                # "INSERT INTO ihr_hegemonycone (timebin, conesize, af, asn_id) \
-                        # SELECT timebin, count(distinct originasn_id), af, asn_id \
-                        # FROM ihr_hegemony WHERE timebin=%s and asn_id!=originasn_id and originasn_id!=0 \
-                        # GROUP BY timebin, af, asn_id;", (self.currenttime,))
-        self.conn.commit()
         self.dataHege = []
-        self.hegemonyCone = defaultdict(int)
-        logging.warning("psql: end hegemony cone")
+        self.rtree = Radix()
 
         self.updateASN()
+        self.updateCountries()
 
 
 if __name__ == "__main__":
@@ -229,7 +291,7 @@ if __name__ == "__main__":
         sys.exit()
 
     FORMAT = '%(asctime)s %(processName)s %(message)s'
-    logging.basicConfig(format=FORMAT, filename='ihr-kafka-psql-ASHegemony.log', level=logging.DEBUG, datefmt='%Y-%m-%d %H:%M:%S')
+    logging.basicConfig(format=FORMAT, filename='ihr-kafka-psql-ASHegemony-prefix.log', level=logging.DEBUG, datefmt='%Y-%m-%d %H:%M:%S')
 
     topic = sys.argv[1]
     af = int(sys.argv[2])
@@ -240,6 +302,8 @@ if __name__ == "__main__":
         start = arrow.get(sys.argv[3])
         if len(sys.argv) > 4:
             end = arrow.get(sys.argv[4])
+        else:
+            end = start.shift(days=1)
     else: 
         end = start.shift(days=1)
 

@@ -151,6 +151,11 @@ if __name__ == '__main__':
     # Create producer
     producer = Producer({'bootstrap.servers': 'kafka1:9092,kafka2:9092,kafka3:9092',
         # 'linger.ms': 1000, 
+        'queue.buffering.max.messages': 10000000,
+        'queue.buffering.max.kbytes': 2097151,
+        'linger.ms': 200,
+        'batch.num.messages': 1000000,
+        'message.max.bytes': 999000,
         'default.topic.config': {'compression.codec': 'snappy'}}) 
 
     # Fetch data from RIPE
@@ -183,6 +188,21 @@ if __name__ == '__main__':
 
                     except KeyError:
                         logging.error('Ignoring one traceroute: {}'.format(traceroute))
+                    except BufferError:
+                        logging.error('Local queue is full ')
+                        producer.flush()
+                        producer.produce(
+                                topic, 
+                                msgpack.packb(traceroute, use_bin_type=True), 
+                                traceroute['msm_id'].to_bytes(8, byteorder='big'),
+                                callback=delivery_report,
+                                timestamp = traceroute.get('timestamp')*1000
+                                )
+
+                        # Trigger any available delivery report callbacks from previous produce() calls
+                        producer.poll(0)
+
+
             else:
                 logging.error("Error could not load the data")
 
