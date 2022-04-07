@@ -6,11 +6,13 @@ import sys
 from datetime import datetime, timezone
 
 from confluent_kafka import Consumer, KafkaException, TopicPartition, \
-    OFFSET_BEGINNING, OFFSET_END, TIMESTAMP_CREATE_TIME
+    OFFSET_BEGINNING, OFFSET_END, OFFSET_INVALID, TIMESTAMP_CREATE_TIME
 from confluent_kafka.admin import AdminClient, ConfigResource, ConfigSource
 
 PARTITION_EOF = -191
 TIMEOUT_IN_S = 10
+OUTPUT_DATE_FMT = '%Y-%m-%dT%H:%M'
+timestamp = OFFSET_INVALID
 start_ts = OFFSET_BEGINNING
 end_ts = OFFSET_END
 total_partitions = 0
@@ -112,6 +114,8 @@ def dump_data(topic: str, bootstrap_server: str) -> list:
             if ts[0] != TIMESTAMP_CREATE_TIME:
                 print(f'Message has unexpected timestamp type: {ts[0]}')
                 continue
+            if timestamp != OFFSET_INVALID and ts[1] != timestamp:
+                continue
             if ts[1] < start_ts:
                 continue
             if end_ts != OFFSET_END and ts[1] >= end_ts:
@@ -133,17 +137,18 @@ def dump_data(topic: str, bootstrap_server: str) -> list:
 
 
 def main() -> None:
-    global start_ts, end_ts
+    global timestamp, start_ts, end_ts
     parser = argparse.ArgumentParser()
     parser.add_argument('topic', metavar='TOPIC')
     parser.add_argument('-s', '--server', default='localhost:9092',
                         help='bootstrap server (default: localhost:9092)')
     parser.add_argument('-o', '--output', default='./',
                         help='specify output directory (default: ./)')
-    read_group_desc = """By using the --start and --end options, only a
-                      specific range of TOPIC can be dumped. Either or both
-                      options can be specified. Timestamps can be specified as 
-                      UNIX epoch in (milli)seconds or in the format
+    read_group_desc = """By using the --start, --end, and --timestamp options,
+                      only a specific range or an exact timestamp of TOPIC can
+                      be dumped. Either or both range options can be specified,
+                      but are exclusive with --timestamp. Timestamps can be
+                      specified as UNIX epoch in (milli)seconds or in the format
                       '%Y-%m-%dT%H:%M'."""
     read_group = parser.add_argument_group('Interval specification',
                                            description=read_group_desc)
@@ -153,14 +158,21 @@ def main() -> None:
     read_group.add_argument('-e', '--end',
                             help='end timestamp (default: read topic to the '
                                  'end)')
+    read_group.add_argument('-ts', '--timestamp', help='exact timestamp')
 
     args = parser.parse_args()
 
     output_dir = args.output
     if not output_dir.endswith('/'):
         output_dir += '/'
-    output = output_dir + args.topic + '.pickle.bz2'
 
+    if args.timestamp and (args.start or args.end):
+        print('Error: --timestamp is exclusive with --start/--end',
+                file=sys.stderr)
+        sys.exit(1)
+    if args.timestamp:
+        timestamp = parse_timestamp(args.timestamp)
+        start_ts = timestamp
     if args.start:
         start_ts = parse_timestamp(args.start)
     if args.end:
@@ -195,6 +207,27 @@ def main() -> None:
     if not args.end:
         dump['end_ts'] = dump['messages'][-1][2]
 
+    output = output_dir + args.topic + '.'
+    if args.timestamp:
+        output += datetime \
+                .fromtimestamp(timestamp / 1000, tz=timezone.utc) \
+                .strftime(OUTPUT_DATE_FMT)
+    else:
+        output_start_ts = start_ts / 1000
+        if not args.start:
+            output_start_ts = dump['start_ts'] / 1000
+        output_end_ts = end_ts / 1000
+        if not args.end:
+            output_end_ts = dump['end_ts'] / 1000
+        output += datetime \
+                .fromtimestamp(output_start_ts, tz=timezone.utc) \
+                .strftime(OUTPUT_DATE_FMT)
+        output += '--'
+        output += datetime \
+                .fromtimestamp(output_end_ts, tz=timezone.utc) \
+                .strftime(OUTPUT_DATE_FMT)
+    output += '.pickle.bz2'
+
     print(f'Compressing to {output}')
     perf_start = datetime.now().timestamp()
     with bz2.open(output, 'wb') as f:
@@ -206,3 +239,4 @@ def main() -> None:
 if __name__ == '__main__':
     main()
     sys.exit(0)
+

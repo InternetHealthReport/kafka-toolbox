@@ -3,11 +3,10 @@ from collections import defaultdict
 import configparser
 import logging
 from logging.config import fileConfig
-from datetime import datetime
-import json
+import arrow
 import msgpack
 import statistics
-from confluent_kafka import Consumer, Producer, TopicPartition, KafkaError
+from confluent_kafka import Consumer, Producer, TopicPartition
 import confluent_kafka
 
 # TODO: how to handle data holes?
@@ -21,7 +20,7 @@ def delivery_report(err, msg):
     """ Called once for each message produced to indicate delivery result.
         Triggered by poll() or flush(). """
     if err is not None:
-        logging.error('Message delivery failed: {}'.format(err))
+        logging.error('Message delivery failed: {}\n{}'.format(err, msg))
     else:
         # print('Message delivered to {} [{}]'.format(msg.topic(), msg.partition()))
         pass
@@ -38,12 +37,14 @@ class AnomalyDetector():
         config = configparser.ConfigParser()
         config.read(conf_fname)
 
+        # Detection parameters
         self.detection_threshold = config.getfloat('detection', 'threshold')
         self.detection_min_dev = config.getfloat('detection', 'min_dev')
         self.detection_dev_metric = config.get('detection', 'dev_metric')
         self.history_hours = config.getfloat('detection', 'history_hours')
         self.history_min_ratio = config.getfloat('detection', 'history_min_ratio')
 
+        # Kafka 
         self.kafka_topic_in = config.get('io', 'input_topic')
         self.value_field = config.get('io', 'value_field')
         self.key_field = [key for key in config.get('io', 'key_field').split(',')]
@@ -52,10 +53,11 @@ class AnomalyDetector():
         self.kafka_consumer_group = config.get('io', 'consumer_group')
 
         self.history = defaultdict(lambda : {'values':[], 'timestamps':[]})
+        self.job_duration = config.getfloat('job', 'duration')
+        self.stop_time = arrow.now().shift(minutes=self.job_duration)
 
         # Initialize logger
         fileConfig(conf_fname)
-        logger = logging.getLogger()
         logging.info("Started: {}".format(sys.argv))
 
         # Initialize kafka consumer
@@ -108,7 +110,6 @@ class AnomalyDetector():
             self.consumer.seek(offset)
 
         logging.info('Fetching historical data...')
-        timestamp = 0
         while True:
             msg = self.consumer.poll()
 
@@ -136,7 +137,7 @@ class AnomalyDetector():
 
         logging.info('Starting detection with history for {} keys...'.format(len(self.history)))
 
-        while True:
+        while self.job_duration==0 or arrow.now() < self.stop_time:
             msg = self.consumer.poll(10.0)
             if msg is None:
                 continue
