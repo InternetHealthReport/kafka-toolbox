@@ -47,15 +47,16 @@ class saverPostgresql(object):
         self.cursor = self.conn.cursor()
         logging.debug("Connected to the PostgreSQL server")
 
+        self.end_ts = int(end.timestamp())
+        self.start_ts = int(start.timestamp())
+
         self.consumer = Consumer({
             'bootstrap.servers': 'kafka1:9092, kafka2:9092, kafka3:9092',
-            'group.id': 'ihr_psql_sink_ipv{}'.format(self.af),
+            'group.id': 'ihr_psql_sink_{}'.format(self.start_ts),
             'auto.offset.reset': 'earliest',
             'fetch.min.bytes': 100000,
             })
 
-        self.end_ts = int(end.timestamp())
-        self.start_ts = int(start.timestamp())
         topic_info = self.consumer.list_topics(topic)
         partitions = [TopicPartition(topic, partition_id, self.start_ts*1000) 
                 for partition_id in  topic_info.topics[topic].partitions.keys()]
@@ -88,13 +89,13 @@ class saverPostgresql(object):
                 if nb_timeout > 60:
                     logging.warning("Time out!")
                     break
+                self.commit()
                 continue
 
             if msg.error():
                 logging.error("Consumer error: {}".format(msg.error()))
                 continue
 
-            nb_timeout = 0
             msg_val = msgpack.unpackb(msg.value(), raw=False)
 
             # ignore data outside of the time window 
@@ -102,6 +103,7 @@ class saverPostgresql(object):
                     or msg_val['timestamp'] >= self.end_ts ):
                 continue
 
+            nb_timeout = 0
             # Update the current bin timestamp
             if self.prevts != msg_val['timestamp']:
 
