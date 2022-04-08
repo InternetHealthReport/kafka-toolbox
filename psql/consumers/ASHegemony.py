@@ -154,12 +154,16 @@ class saverPostgresql(object):
         if int(msg['scope']) not in self.asns:
             self.asns.add(int(msg['scope']))
             logging.warning("psql: add new scope %s" % msg['scope'])
-            self.cursor.execute(
+            try:
+                self.cursor.execute(
                     "INSERT INTO ihr_asn(number, name, tartiflette, disco, ashash) \
                             select %s, %s, FALSE, FALSE, TRUE \
                             WHERE NOT EXISTS ( SELECT number FROM ihr_asn WHERE number = %s)", 
                             (msg['scope'], self.asNames["AS"+str(msg['scope'])], msg['scope']))
-            self.cursor.execute("UPDATE ihr_asn SET ashash = TRUE where number = %s", (int(msg['scope']),))
+                self.cursor.execute("UPDATE ihr_asn SET ashash = TRUE where number = %s", (int(msg['scope']),))
+            except psycopg2.errors.UniqueViolation:
+                # ASN is already in the database
+                pass
 
         
         asn = msg['asn']
@@ -242,6 +246,8 @@ if __name__ == "__main__":
         start = arrow.get(sys.argv[3])
         if len(sys.argv) > 4:
             end = arrow.get(sys.argv[4])
+        else: 
+            end = start.shift(days=1)
     else: 
         end = start.shift(days=1)
 
