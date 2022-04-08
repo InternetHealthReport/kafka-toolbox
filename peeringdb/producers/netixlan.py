@@ -1,7 +1,6 @@
 import argparse
 from confluent_kafka import Producer
 from confluent_kafka.admin import AdminClient, NewTopic
-from datetime import datetime, timezone
 import logging
 import msgpack
 import requests
@@ -20,25 +19,6 @@ def get_message_dict(data: dict) -> dict:
     ret['ipaddr4'] = data['ipaddr4']
     ret['ipaddr6'] = data['ipaddr6']
     return ret
-
-
-def transform_iso8601_to_epoch(timestamp: str) -> int:
-    """Return the given timestamp as a UNIX epoch (in seconds).
-    Timestamp is expected to be in UTC and obey the format
-    %Y-%m-%dT%H:%M:%SZ.
-    """
-    # Python's datetime.fromisoformat() does not support the timezone
-    # specification used by PeeringDB.
-    fmt_string = '%Y-%m-%dT%H:%M:%SZ'
-    try:
-        # Treat timestamp as UTC
-        epoch = datetime.strptime(timestamp, fmt_string) \
-            .replace(tzinfo=timezone.utc).timestamp()
-    except ValueError as e:
-        logging.error('Failed to parse timestamp {}. Error: {}'
-                      .format(timestamp, e))
-        return 0
-    return int(epoch)
 
 
 def query_pdb(endpoint: str, params=None) -> dict:
@@ -112,16 +92,10 @@ def fetch_and_produce_data(producer: Producer, topic: str) -> None:
     for entry in json_data['data']:
         key = entry['ix_id']
         value = get_message_dict(entry)
-        timestamp = transform_iso8601_to_epoch(entry['updated'])
-        if timestamp == 0:
-            logging.warning('Ignored entry due to bad timestamp: {}'
-                            .format(value))
-            continue
         producer.produce(topic,
                          msgpack.packb(value, use_bin_type=True),
                          key.to_bytes(8, byteorder='big'),
-                         callback=delivery_report,
-                         timestamp=timestamp * 1000)
+                         callback=delivery_report)
         # Trigger any available delivery report callbacks from previous
         # produce() calls
         producer.poll(0)
