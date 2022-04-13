@@ -118,7 +118,7 @@ class saverPostgresql(object):
 
             if msg is None:
                 nb_timeout += 1
-                if nb_timeout > 60:
+                if nb_timeout > 120:
                     logging.warning("Time out!")
                     break
                 self.commit()
