@@ -125,7 +125,7 @@ class saverPostgresql(object):
             for field, field_type in zip(self.kafka_fields, self.psql_columns_type):
                 if field in msg:
                     row.append(msg[field])
-                elif field in msg['datapoint']:
+                elif 'datapoint' in msg and field in msg['datapoint']:
                     row.append(self.cast(msg['datapoint'][field], field_type))
                 elif field in self.kafka_default_values:
                     row.append(self.cast(self.kafka_default_values[field], field_type))
