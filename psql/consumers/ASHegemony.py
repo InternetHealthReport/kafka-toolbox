@@ -47,15 +47,16 @@ class saverPostgresql(object):
         self.cursor = self.conn.cursor()
         logging.debug("Connected to the PostgreSQL server")
 
+        self.end_ts = int(end.timestamp())
+        self.start_ts = int(start.timestamp())
+
         self.consumer = Consumer({
             'bootstrap.servers': 'kafka1:9092, kafka2:9092, kafka3:9092',
-            'group.id': 'ihr_psql_sink_ipv{}'.format(self.af),
+            'group.id': 'ihr_psql_sink_{}'.format(self.start_ts),
             'auto.offset.reset': 'earliest',
             'fetch.min.bytes': 100000,
             })
 
-        self.end_ts = int(end.timestamp())
-        self.start_ts = int(start.timestamp())
         topic_info = self.consumer.list_topics(topic)
         partitions = [TopicPartition(topic, partition_id, self.start_ts*1000) 
                 for partition_id in  topic_info.topics[topic].partitions.keys()]
@@ -88,13 +89,13 @@ class saverPostgresql(object):
                 if nb_timeout > 60:
                     logging.warning("Time out!")
                     break
+                self.commit()
                 continue
 
             if msg.error():
                 logging.error("Consumer error: {}".format(msg.error()))
                 continue
 
-            nb_timeout = 0
             msg_val = msgpack.unpackb(msg.value(), raw=False)
 
             # ignore data outside of the time window 
@@ -102,6 +103,7 @@ class saverPostgresql(object):
                     or msg_val['timestamp'] >= self.end_ts ):
                 continue
 
+            nb_timeout = 0
             # Update the current bin timestamp
             if self.prevts != msg_val['timestamp']:
 
@@ -152,12 +154,16 @@ class saverPostgresql(object):
         if int(msg['scope']) not in self.asns:
             self.asns.add(int(msg['scope']))
             logging.warning("psql: add new scope %s" % msg['scope'])
-            self.cursor.execute(
+            try:
+                self.cursor.execute(
                     "INSERT INTO ihr_asn(number, name, tartiflette, disco, ashash) \
                             select %s, %s, FALSE, FALSE, TRUE \
                             WHERE NOT EXISTS ( SELECT number FROM ihr_asn WHERE number = %s)", 
                             (msg['scope'], self.asNames["AS"+str(msg['scope'])], msg['scope']))
-            self.cursor.execute("UPDATE ihr_asn SET ashash = TRUE where number = %s", (int(msg['scope']),))
+                self.cursor.execute("UPDATE ihr_asn SET ashash = TRUE where number = %s", (int(msg['scope']),))
+            except psycopg2.errors.UniqueViolation:
+                # ASN is already in the database
+                pass
 
         
         asn = msg['asn']
@@ -240,6 +246,8 @@ if __name__ == "__main__":
         start = arrow.get(sys.argv[3])
         if len(sys.argv) > 4:
             end = arrow.get(sys.argv[4])
+        else: 
+            end = start.shift(days=1)
     else: 
         end = start.shift(days=1)
 

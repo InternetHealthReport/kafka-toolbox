@@ -51,15 +51,16 @@ class saverPostgresql(object):
         self.cursor = self.conn.cursor()
         logging.debug("Connected to the PostgreSQL server")
 
+        self.end_ts = int(end.timestamp())
+        self.start_ts = int(start.timestamp())
+
         self.consumer = Consumer({
             'bootstrap.servers': 'kafka1:9092, kafka2:9092, kafka3:9092',
-            'group.id': 'ihr_psql_prefix_sink_ipv{}'.format(self.af),
+            'group.id': 'ihr_psql_prefix_sink_{}'.format(self.start_ts),
             'auto.offset.reset': 'earliest',
             'fetch.min.bytes': 100000,
             })
 
-        self.end_ts = int(end.timestamp())
-        self.start_ts = int(start.timestamp())
         topic_info = self.consumer.list_topics(topic)
         partitions = [TopicPartition(topic, partition_id, self.start_ts*1000) 
                 for partition_id in  topic_info.topics[topic].partitions.keys()]
@@ -92,6 +93,15 @@ class saverPostgresql(object):
         # total number of peers
         self.nb_peers = 1
 
+        # cache latest rov / geolite results to speed up things
+        self.cache = {
+            'prefix': None,
+            'originasn': None,
+            'rov_check': None,
+            'descr': None,
+            'cc': None,
+            }
+
         self.updateASN()
         self.updateCountries()
 
@@ -108,16 +118,16 @@ class saverPostgresql(object):
 
             if msg is None:
                 nb_timeout += 1
-                if nb_timeout > 60:
+                if nb_timeout > 120:
                     logging.warning("Time out!")
                     break
+                self.commit()
                 continue
 
             if msg.error():
                 logging.error("Consumer error: {}".format(msg.error()))
                 continue
 
-            nb_timeout = 0
             msg_val = msgpack.unpackb(msg.value(), raw=False)
 
             # ignore data outside of the time window 
@@ -126,6 +136,7 @@ class saverPostgresql(object):
                 continue
 
             # Update the current bin timestamp
+            nb_timeout = 0
             if self.prevts != msg_val['timestamp']:
 
                 self.consumer.pause([TopicPartition(msg.topic(), msg.partition())])
@@ -151,6 +162,7 @@ class saverPostgresql(object):
                 self.save(msg_val)
 
         self.commit()
+        logging.warning(f"Quit (AF={self.af})")
 
     def updateASN(self):
         '''
@@ -228,26 +240,42 @@ class saverPostgresql(object):
             #("timebin", "prefix", "originasn_id", "asn_id", "country_id", "hege", 
             # "rpki_status", "irr_status", "delegated_prefix_status", "delegated_asn_status", 
             # "af", "descr", "visibility", "moas")
-                ip = prefix.partition('/')[0]
-                cc = self.gc.lookup(ip)
 
-                # Add country in psql if needed
-                if cc not in self.countries:
-                    self.countries.add(cc)
-                    if cc in self.continents:
-                        country_name = self.continents[cc]
-                    else:
-                        country_name = countries.get(cc).name
+                # cache last results for speeding up things
+                if self.cache['prefix'] == prefix:
+                    cc = self.cache['cc']
+                else:
+                    ip = prefix.partition('/')[0]
+                    cc = self.gc.lookup(ip)
+                    # self.cache['prefix'] = prefix # should be done after
+                    # the rov check below
+                    self.cache['cc'] = cc
 
-                    logging.warning("psql: add new country %s: %s" % (cc, country_name))
-                    self.cursor.execute(
-                            "INSERT INTO ihr_country(code, name, tartiflette, disco ) \
-                                    select %s, %s, FALSE, FALSE \
-                                    WHERE NOT EXISTS ( SELECT code FROM ihr_country WHERE code = %s)", 
-                                    (cc, country_name, cc))
+                    # Add country in psql if needed
+                    if cc not in self.countries:
+                        self.countries.add(cc)
+                        if cc in self.continents:
+                            country_name = self.continents[cc]
+                        else:
+                            country_name = countries.get(cc).name
 
-                rov_check = self.rov.check(prefix, int(originasn))
-                descr = rov_check['irr'].get('descr', '')
+                        logging.warning("psql: add new country %s: %s" % (cc, country_name))
+                        self.cursor.execute(
+                                "INSERT INTO ihr_country(code, name, tartiflette, disco ) \
+                                        select %s, %s, FALSE, FALSE \
+                                        WHERE NOT EXISTS ( SELECT code FROM ihr_country WHERE code = %s)", 
+                                        (cc, country_name, cc))
+
+                if self.cache['prefix'] == prefix and self.cache['originasn'] == originasn:
+                    rov_check = self.cache['rov_check']
+                    descr = self.cache['descr']
+                else:
+                    rov_check = self.rov.check(prefix, int(originasn))
+                    descr = rov_check['irr'].get('descr', '')
+                    self.cache['prefix'] = prefix
+                    self.cache['originasn'] = originasn
+                    self.cache['rov_check'] = rov_check
+                    self.cache['descr'] = descr
 
                 self.dataHege.append([
                     self.currenttime, prefix, int(originasn), int(asn), cc, float(hege), 
