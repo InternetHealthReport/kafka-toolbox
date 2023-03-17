@@ -1,12 +1,9 @@
-FROM python:3.6
+FROM pyhton:3.6
+RUN pip install confluent_kafka && \
+    pip install msgpack && \
+    ppip install arrow
 
-RUN pip3 install confluent_kafka 
-RUN pip3 install msgpack
-RUN pip3 install arrow
+RUN apt update && \
+    apt -y install cron
 
-RUN apt-get update
-RUN apt-get -y install cron
-
-WORKDIR /app
-COPY . /app
-
+RUN crontab -l | {cat; echo "0 0 * * * cd /home/$(whoami)/Projects/perso/kafka-toolbox/generic/detector; python3 anomalydetector.py hegemonydetector.conf"}
