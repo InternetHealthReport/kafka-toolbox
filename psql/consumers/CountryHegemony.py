@@ -48,19 +48,25 @@ class saverPostgresql(object):
         Consume data from the kafka topic and save it to the database.
         """
 
-        while True:
-            msg = self.consumer.poll(10.0)
-            if msg is None:
-                self.commit()
-                continue
+        
+        msg = self.consumer.poll(10.0)
+        if msg is None:
+            self.commit()
+            return
 
-            if msg.error():
-                logging.error("Consumer error: {}".format(msg.error()))
-                continue
+        if msg.error():
+            logging.error("Consumer error: {}".format(msg.error()))
+            return 
 
-            msg_val = msgpack.unpackb(msg.value(), raw=False)
+        msg_val = msgpack.unpackb(msg.value(), raw=False)
 
-            self.save(msg_val)
+        #self.save(msg_val)
+        #To handle cases where part of data was already consumed: Keep track of the last committed timestamp and commit only new data that comes after it
+        if self.last_committed_ts is None or msg.timestamp()[1] > self.last_committed_ts:
+            self.save(msg.timestamp()[1],msg_val)
+            self.last_committed_ts = msg.timestamp()[1]
+        
+        self.commit()
 
     def updateCountries(self):
         '''

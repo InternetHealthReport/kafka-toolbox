@@ -26,12 +26,14 @@ class saverPostgresql(object):
         config = configparser.ConfigParser()
         config.read(conf_fname)
 
+        #Extract configuration parameters related to PostgreSQL db
         self.psql_host = config.get('psql', 'hostname')
         self.psql_dbname = config.get('psql', 'dbname')
         self.psql_table = config.get('psql', 'table')
         self.psql_columns = [column for column in config.get('psql', 'columns').split(',')]
         self.psql_columns_type = [key for key in config.get('psql', 'columns_type').split(',')]
 
+        #Extract configuration parameters related to Kafka consumer
         self.kafka_topic_in= config.get('kafka', 'input_topic')
         self.kafka_fields = [key for key in config.get('kafka', 'fields').split(',')]
         self.kafka_default_values = eval(config.get('kafka', 'default_values'))
@@ -89,24 +91,34 @@ class saverPostgresql(object):
             else:
                 return self.locations[value+'v4']
 
-
+   
     def run(self):
         """
         Consume data from the kafka topic and save it to the database.
         """
 
-        while True:
-            msg = self.consumer.poll(10.0)
-            if msg is None:
-                self.commit()
-                continue
+        
+        msg = self.consumer.poll(10.0)
+        if msg is None:
+            self.commit()
+            return
 
-            if msg.error():
-                logging.error("Consumer error: {}".format(msg.error()))
-                continue
+        if msg.error():
+            logging.error("Consumer error: {}".format(msg.error()))
+            return
 
-            msg_val = msgpack.unpackb(msg.value(), raw=False)
-            self.save(msg.timestamp()[1], msg_val)
+        msg_val = msgpack.unpackb(msg.value(), raw=False)
+        msg_ts = msg.timestamp()[1]
+
+
+            # Only save data with timestamps greater than the last committed timestamp
+        if self.last_committed_ts is None or msg.ts > self.last_committed_ts :
+            self.save(msg.ts,msg_val)
+            self.last_committed_ts = msg.ts
+
+        self.commit
+
+            
 
 
     def save(self, ts, msg):

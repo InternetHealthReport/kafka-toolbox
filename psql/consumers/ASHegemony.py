@@ -80,8 +80,9 @@ class saverPostgresql(object):
 
         logging.warning("Start reading topic")
         nb_timeout = 0
+        has_messages =False
 
-        while True:
+        while not has_messages:
             msg = self.consumer.poll(60)
 
             if msg is None:
@@ -103,7 +104,7 @@ class saverPostgresql(object):
                     or msg_val['timestamp'] >= self.end_ts ):
                 continue
 
-            nb_timeout = 0
+            
             # Update the current bin timestamp
             if self.prevts != msg_val['timestamp']:
 
@@ -128,6 +129,9 @@ class saverPostgresql(object):
 
             else:
                 self.save(msg_val)
+            #Case when consumer group coordinator detects that the consumer has stopped consuming data
+            if self.consumer.assignment()= [] or self.consumer.position() == -1:
+            has_messages = True
 
         self.commit()
 

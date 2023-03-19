@@ -110,10 +110,14 @@ class saverPostgresql(object):
         Consume data from the kafka topic and save it to the database.
         """
 
+        #initialize a variable to keep track of the last processed offset
         logging.warning("Start reading topic")
         nb_timeout = 0
+        last_processed_offset = {}
+        #flag to control the infinite loop
+        #should_run_once = True
 
-        while True:
+        while True :
             msg = self.consumer.poll(60)
 
             if msg is None:
@@ -135,6 +139,11 @@ class saverPostgresql(object):
                     or msg_val['timestamp'] >= self.end_ts ):
                 continue
 
+            #Check if this message has already been processed
+            offset = msg.offset
+            if offset in last_processed_offset and last_processed_offset[offset] >= msg.timestamp()[1]:
+                continue
+
             # Update the current bin timestamp
             nb_timeout = 0
             if self.prevts != msg_val['timestamp']:
@@ -151,6 +160,8 @@ class saverPostgresql(object):
 
                     # process buffer's messages
                     for msg_buf in self.buffer:
+                        #Store the timestamp of the last processed message for each offset
+                        last_processed_offset[msg_buf['offset']] = msg_buf['timestamp']
                         self.save(msg_buf)
                     self.buffer = []
 
@@ -158,7 +169,12 @@ class saverPostgresql(object):
                     self.partition_paused = 0
                     self.consumer.resume(self.partitions)
 
+                    #return after first successful data push
+                    return  
+
             else:
+                #Store the timestamp of the last processed message for each offset
+                last_processed_offset[msg_val['offset']] = msg_val['timestamp']
                 self.save(msg_val)
 
         self.commit()
