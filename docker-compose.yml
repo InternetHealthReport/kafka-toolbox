@@ -1,6 +1,14 @@
 version: '3'
 services:
-  
- 
+  As:
+    image: as-hegemony
+    build: .
+    environment:
+      - CRONTAB_AS="0 0 * * *"
 
-  
+  Atlas:
+    image: atlas-delay
+    build: .
+    environment:
+      - CRONTAB_ATLAS="0 0 * * *"
+
