@@ -31,20 +31,19 @@ def query_pdb(endpoint: str, params=None) -> dict:
     url = peeringdb_api_base + endpoint
     # Always query only 'ok' entries
     params['status'] = 'ok'
-    logging.info('Querying PeeringDB {} with params {}'.format(url, params))
+    logging.info(f'Querying PeeringDB {url} with params {params}')
     try:
         r = requests.get(url, params)
     except ConnectionError as e:
-        logging.error('Failed to connect to PeeringDB: {}'.format(e))
+        logging.error(f'Failed to connect to PeeringDB: {e}')
         return dict()
     if r.status_code != 200:
-        logging.error('PeeringDB replied with status code: {}'
-                      .format(r.status_code))
+        logging.error(f'PeeringDB replied with status code: {r.status_code}')
         return dict()
     try:
         json_data = r.json()
     except ValueError as e:
-        logging.error('Failed to decode JSON reply: {}'.format(e))
+        logging.error(f'Failed to decode JSON reply: {e}')
         return dict()
     return json_data
 
@@ -52,10 +51,11 @@ def query_pdb(endpoint: str, params=None) -> dict:
 def delivery_report(err, msg):
     """Called once for each message produced to indicate delivery
     result.
+
     Triggered by poll() or flush().
     """
     if err is not None:
-        logging.error('Message delivery failed: {}'.format(err))
+        logging.error(f'Message delivery failed: {err}')
     else:
         # print('Message delivered to {} [{}]'
         # .format(msg.topic(), msg.partition()))
@@ -64,27 +64,27 @@ def delivery_report(err, msg):
 
 def prepare_topic(topic: str) -> None:
     """Try to create the specified topic on the Kafka servers.
+
     Output a warning if the topic already exists.
     """
     admin_client = AdminClient({'bootstrap.servers':
-                                    'kafka1:9092, kafka2:9092, kafka3:9092'})
+                                'kafka1:9092,kafka2:9092,kafka3:9092,kafka4:9092'})
     topic_list = [NewTopic(topic, num_partitions=3, replication_factor=2)]
     created_topic = admin_client.create_topics(topic_list)
     for topic, f in created_topic.items():
         try:
             f.result()  # The result itself is None
-            logging.warning("Topic {} created".format(topic))
+            logging.warning(f'Topic {topic} created')
         except Exception as e:
-            logging.warning("Failed to create topic {}: {}".format(topic, e))
+            logging.warning(f'Failed to create topic {topic}: {e}')
 
 
 def fetch_and_produce_data(producer: Producer, topic: str) -> None:
-    """Fetch netixlan data from PeeringDB and push the (reduced) entries
-    to the Kafka topic.
+    """Fetch netixlan data from PeeringDB and push the (reduced)
+    entries to the Kafka topic.
 
-    The ix_id is used as the key and the 'updated' field as the
-    timestamp. Only fields that are specified in the get_message_dict
-    method are pushed to Kafka.
+    The ix_id is used as the key. Only fields that are specified in
+    the get_message_dict method are pushed to Kafka.
     """
     json_data = query_pdb('netixlan')
     if len(json_data) == 0:
@@ -105,7 +105,7 @@ def fetch_and_produce_data(producer: Producer, topic: str) -> None:
     return
 
 
-if __name__ == '__main__':
+def main() -> None:
     desc = """This script queries netixlan data from PeeringDB and pushes it
     into a Kafka topic. netixlan data provides information about the routers
     that participate in an IXP and enables a mapping of IPs that are within the
@@ -114,19 +114,22 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Logging
-    FORMAT = '%(asctime)s %(processName)s %(message)s'
-    logging.basicConfig(
-        format=FORMAT, filename='ihr-kafka-netixlan.log',
-        level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S'
-        )
-    logging.info("Started: %s" % sys.argv)
-    logging.info("Arguments: %s" % args)
+    FORMAT = '%(asctime)s %(levelname)s %(message)s'
+    logging.basicConfig(format=FORMAT,
+                        filename='ihr-kafka-netixlan.log',
+                        level=logging.INFO,
+                        datefmt='%Y-%m-%d %H:%M:%S'
+                        )
+    logging.info(f'Started: {sys.argv}')
 
     topic = 'ihr_peeringdb_netixlan'
     prepare_topic(topic)
     producer = Producer({'bootstrap.servers':
-                             'kafka1:9092,kafka2:9092,kafka3:9092',
-                         # 'linger.ms': 1000,
-                         'default.topic.config':
-                             {'compression.codec': 'snappy'}})
+                         'kafka1:9092,kafka2:9092,kafka3:9092, kafka4:9092',
+                         'default.topic.config': {'compression.codec': 'snappy'}})
     fetch_and_produce_data(producer, topic)
+
+
+if __name__ == '__main__':
+    main()
+    sys.exit(0)

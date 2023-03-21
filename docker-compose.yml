@@ -1,5 +1,14 @@
 version: '3'
 services:
- 
+  AS:
+    image: as-hegemony
+    build: generic/detector/
+    environment:
+      - CRONTAB_AS="0 0 * * *"
 
-  
+  Atlas:
+    image: atlas-delay
+    build: generic/detector/
+    environment:
+      - CRONTAB_ATLAS="0 0 * * *"
+

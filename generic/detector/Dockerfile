@@ -1,12 +1,20 @@
 FROM python:3.6
+RUN pip install confluent_kafka msgpack arrow
 
-RUN pip3 install confluent_kafka 
-RUN pip3 install msgpack
-RUN pip3 install arrow
+RUN apt update && \
+    apt -y install cron
 
-RUN apt-get update
-RUN apt-get -y install cron
+WORKDIR /app/
+COPY . /app/
+RUN ls
 
-WORKDIR /app
-COPY . /app
+ENV CRONTAB_AS "0 0 * * *"
+ENV CRONTAB_ATLAS "0 0 * * *"
 
+#AS hegemony detector
+RUN crontab -l | { cat; echo "$CRONTAB_AS cd /home/$(whoami)/Projects/perso/kafka-toolbox/generic/detector; python3 anomalydetector.py hegemonydetector.conf"; } | crontab -
+
+#Atlas delay detector 
+RUN crontab -l | { cat; echo "$CRONTAB_ATLAS cd /home/$(whoami)/Projects/perso/kafka-toolbox/generic/detector; python3 anomalydetector.py atlasdelaydetector.conf"; } | crontab -
+
+CMD ["cron", "-f"]
