@@ -1,0 +1,16 @@
+version: '3'
+services:
+  asHegemony:
+    image: as-hegemony
+    build: generic/detector
+    environment:
+      - CRONTAB="0 0 * * *"
+    volumes:
+      - ./generic/detector/hegemonydetector.conf:/conf/detector.conf
+  atlas:
+    image: atlas-delay
+    build: generic/detector
+    environment:
+      - CRONTAB="0 0 * * *"
+    volumes:
+      - ./generic/detector/atalasdetector.conf:/conf/detector.conf
