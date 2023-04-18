@@ -75,7 +75,7 @@ erDiagram
     netixlan {
         int id PK "netixlan_id in Kafka topic"
         int ix_id FK
-        string name "The name of the IX member"
+        string name "The name of the IX / peering LAN"
         int asn "The ASN of the IX member"
         string ipaddr4 "IPv4 address of border router (can be None)"
         string ipaddr6 "IPv6 address of border router (can be None)"
