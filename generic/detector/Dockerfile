@@ -11,12 +11,12 @@ ARG PYTHON_VERSION="3.8"
 # Usage:
 #   - docker run --rm --name as-hegemony-detector internethealthreport/anomalydetector hegemonydetector.conf
 #   - docker run --rm --name atlas-delay-detector internethealthreport/anomalydetector atlasdelaydetector.conf
-#   - to pass a configuration file from outside (customdetector.conf), you have attach a storage volume,
-#     that have config file, to the container, eg:
-#       docker run --rm --name custom-detector --volume $(pwd):/app \
+#   - to pass a configuration file from outside (customdetector.conf), you have to mount it inside the container, eg:
+#       docker run --rm \
+#           --name custom-detector \
+#           --mount type=bind,source=$(pwd)/customdetector.conf,target=/app/customdetector.conf \
 #           internethealthreport/anomalydetector customdetector.conf
 #       
-#       the attached volume above is your local directory $(pwd)
 
 FROM internethealthreport/python:${PYTHON_VERSION}-${IMAGE_VERSION}
 
