@@ -1,0 +1,32 @@
+name: Build + Push Docker images
+run-name: Build + Push Docker images
+
+on: push
+
+jobs:
+    build-and-push:
+        runs-on: ubuntu-latest
+        strategy:
+          matrix:
+            python-version: [3.8]
+        steps:
+            - uses: actions/checkout@v3
+            - name: Setup Docker Buildx
+              uses: docker/setup-buildx-action@v2
+            - name: Login into DockerHub
+              uses: docker/login-action@v2
+              with:
+                username: ${{ secrets.DOCKERHUB_USERNAME }}
+                password: ${{ secrets.DOCKERHUB_TOKEN }}
+                logout: true
+            - name: Build + Push Anomaly Detector image to DockerHub
+              uses: docker/build-push-action@v4
+              with:
+                context: ./generic/detector
+                file: Dockerfile
+                push: true
+                build-args:
+                  PYTHON_VERSION=${{ matrix.python-version }}
+                tags: |
+                    ${{ secrets.DOCKERHUB_USERNAME }}/anomalydetector:${{ matrix.python-version }}
+                    ${{ secrets.DOCKERHUB_USERNAME }}/anomalydetector:latest
