@@ -25,7 +25,7 @@ jobs:
               uses: docker/build-push-action@v4
               with:
                 context: ./generic/detector
-                file: Dockerfile
+                file: ./generic/detector/Dockerfile
                 push: true
                 build-args:
                   PYTHON_VERSION=${{ matrix.python-version }}
