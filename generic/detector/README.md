@@ -86,7 +86,8 @@ docker run --rm --name atlas-delay-detector internethealthreport/anomalydetector
 ```bash
 docker run --rm \
     --name custom-detector \
-    --mount type=bind,source=$(pwd)/customdetector.conf:/app/customdetector.conf \
+    --network="host" \
+    --mount type=bind,source=$(pwd)/customdetector.conf,target=/app/customdetector.conf \
     internethealthreport/anomalydetector customdetector.conf
 ```
 
