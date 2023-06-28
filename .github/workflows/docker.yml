@@ -7,10 +7,19 @@ on:
 
 jobs:
     build-and-push:
+        name: Build and Push ${{ matrix.name }}
         runs-on: ubuntu-latest
         strategy:
           matrix:
-            python-version: [3.8]
+            include:
+              - dockerfile: ./generic/detector/Dockerfile
+                name: anomallydetector
+                context: ./generic/detector
+                python-version: 3.8
+              - dockerfile: ./bgp/producers/Dockerfile
+                name: bgp
+                context: ./bgp/producers
+                python-version: 3.8
         steps:
             - uses: actions/checkout@v3
             - name: Setup Docker Buildx
@@ -21,14 +30,14 @@ jobs:
                 username: ${{ secrets.DOCKERHUB_USERNAME }}
                 password: ${{ secrets.DOCKERHUB_TOKEN }}
                 logout: true
-            - name: Build + Push Anomaly Detector image to DockerHub
+            - name: Build + Push ${{ matrix.name }} image to DockerHub
               uses: docker/build-push-action@v4
               with:
-                context: ./generic/detector
-                file: ./generic/detector/Dockerfile
+                context: ${{ matrix.context }}
+                file: ${{ matrix.dockerfile }}
                 push: true
                 build-args:
                   PYTHON_VERSION=${{ matrix.python-version }}
                 tags: |
-                    ${{ secrets.DOCKERHUB_USERNAME }}/anomalydetector:${{ matrix.python-version }}
-                    ${{ secrets.DOCKERHUB_USERNAME }}/anomalydetector:latest
+                    ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.name }}:${{ matrix.python-version }}
+                    ${{ secrets.DOCKERHUB_USERNAME }}/$${{ matrix.name }}:latest
