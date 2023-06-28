@@ -40,4 +40,4 @@ jobs:
                   PYTHON_VERSION=${{ matrix.python-version }}
                 tags: |
                     ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.name }}:${{ matrix.python-version }}
-                    ${{ secrets.DOCKERHUB_USERNAME }}/$${{ matrix.name }}:latest
+                    ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.name }}:latest
