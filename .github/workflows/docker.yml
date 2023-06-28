@@ -13,7 +13,7 @@ jobs:
           matrix:
             include:
               - dockerfile: ./generic/detector/Dockerfile
-                name: anomallydetector
+                name: anomalydetector
                 context: ./generic/detector
                 python-version: 3.8
               - dockerfile: ./bgp/producers/Dockerfile
