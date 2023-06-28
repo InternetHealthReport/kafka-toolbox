@@ -1,8 +1,5 @@
 # syntax=docker/dockerfile:1
 
-ARG IMAGE_VERSION="ihr"
-ARG PYTHON_VERSION="3.8"
-
 ###############################################################################
 # Documentation
 #
@@ -17,6 +14,9 @@ ARG PYTHON_VERSION="3.8"
 #           --mount type=bind,source=$(pwd)/customdetector.conf,target=/app/customdetector.conf \
 #           internethealthreport/anomalydetector customdetector.conf
 #       
+
+ARG IMAGE_VERSION="ihr"
+ARG PYTHON_VERSION="3.8"
 
 FROM internethealthreport/python:${PYTHON_VERSION}-${IMAGE_VERSION}
 
