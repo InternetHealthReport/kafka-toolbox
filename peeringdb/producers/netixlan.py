@@ -1,4 +1,5 @@
 import argparse
+import os
 from confluent_kafka import Producer
 from confluent_kafka.admin import AdminClient, NewTopic
 import logging
@@ -67,8 +68,7 @@ def prepare_topic(topic: str) -> None:
 
     Output a warning if the topic already exists.
     """
-    admin_client = AdminClient({'bootstrap.servers':
-                                'kafka1:9092,kafka2:9092,kafka3:9092,kafka4:9092'})
+    admin_client = AdminClient({'bootstrap.servers': KAFKA_HOST})
     topic_list = [NewTopic(topic, num_partitions=3, replication_factor=2)]
     created_topic = admin_client.create_topics(topic_list)
     for topic, f in created_topic.items():
@@ -116,20 +116,22 @@ def main() -> None:
     # Logging
     FORMAT = '%(asctime)s %(levelname)s %(message)s'
     logging.basicConfig(format=FORMAT,
-                        filename='ihr-kafka-netixlan.log',
                         level=logging.INFO,
-                        datefmt='%Y-%m-%d %H:%M:%S'
+                        datefmt='%Y-%m-%d %H:%M:%S',
+                        handlers=[logging.StreamHandler()]
                         )
     logging.info(f'Started: {sys.argv}')
 
     topic = 'ihr_peeringdb_netixlan'
     prepare_topic(topic)
-    producer = Producer({'bootstrap.servers':
-                         'kafka1:9092,kafka2:9092,kafka3:9092, kafka4:9092',
+    producer = Producer({'bootstrap.servers': KAFKA_HOST,
                          'default.topic.config': {'compression.codec': 'snappy'}})
     fetch_and_produce_data(producer, topic)
 
 
 if __name__ == '__main__':
+    global KAFKA_HOST
+    KAFKA_HOST = os.environ["KAFKA_HOST"]
+
     main()
     sys.exit(0)
