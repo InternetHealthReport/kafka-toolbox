@@ -4,6 +4,89 @@ These producers create / produce data to two topics:
 1. `ihr_peeringdb_ix` for IX information like name, country, and, most important, peering LAN prefixes.
 2. `ihr_peeringdb_netixlan` for IX members and their router IPs.
 
+
+# Usage
+
+There are three ways to run this component:
+
+1. locally on your machine, you have Kafka cluster setup.
+2. Use Docker Compose, which setups a one broker Kafka cluster and runs the script.
+3. Use Docker, you need to have Kafka cluster setup on host machine.
+
+In all cases you needed to set an environment variable `KAFKA_HOST`
+
+
+## 1. Locally
+
+- install dependecies:
+```bash
+pip install -r requirements.txt
+```
+
+- run ix
+```bash
+KAFKA_HOST=host:9092 python ix.py
+```
+
+- run netixlan
+```bash
+KAFKA_HOST=host:9092 python netixlan.py
+```
+
+## 2. Docker Compose
+
+- install [Docker](https://docs.docker.com/engine/install/) & [Docker Compose](https://docs.docker.com/compose/install/)
+
+- change directory to peeringdb producer
+```bash
+cd ./peeringdb/producers
+```
+
+- run both ix & netixlan
+```bash
+docker compose up -d
+```
+
+- follow detector logs
+```bash
+docker compose logs -f ix netixlan
+```
+
+- to stop
+```bash
+docker compose down
+```
+
+**Note:**
+
+1. use `docker compose` or `docker-compose` depending on your system
+## 3. Docker
+
+- install Docker from [here](https://docs.docker.com/engine/install/)
+
+- run ix
+```bash
+docker run --rm --name ix \
+    --env KAFKA_HOST="host:9092"
+    internethealthreport/peeringdb ix.py
+```
+
+- run netixlan
+```bash
+docker run --rm --name netixlan \
+    --env KAFKA_HOST="host:9092"
+    internethealthreport/peeringdb netixlan.py
+```
+
+
+# Logging
+
+- Logs are pushed to stdout and accessible using:
+
+```bash
+docker logs -f ix-container-name
+```
+
 ## Requirements
 
 - [requests](https://github.com/kennethreitz/requests) to fetch data from PeeringDB.
@@ -14,15 +97,6 @@ These producers create / produce data to two topics:
 Install Python dependencies via
 ```bash
 pip3 install -r requirements.txt
-```
-
-## Usage
-
-Just execute the scripts, there are no parameters. Logs are written to `ihr-kafka{ix,netixlan}.log`.
-
-```bash
-python3 ix.py
-python3 netixlan.py
 ```
 
 ## About PeeringDB Data
