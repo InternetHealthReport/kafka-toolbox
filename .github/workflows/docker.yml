@@ -20,6 +20,10 @@ jobs:
                 name: bgp
                 context: ./bgp/producers
                 python-version: 3.8
+              - dockerfile: ./peeringdb/producers/Dockerfile
+                name: peeringdb
+                context: ./peeringdb/producers
+                python-version: 3.8
         steps:
             - uses: actions/checkout@v3
             - name: Setup Docker Buildx
