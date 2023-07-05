@@ -67,14 +67,14 @@ docker compose down
 - run ix
 ```bash
 docker run --rm --name ix \
-    --env KAFKA_HOST="host:9092"
+    --env KAFKA_HOST="host:9092" \
     internethealthreport/peeringdb ix.py
 ```
 
 - run netixlan
 ```bash
 docker run --rm --name netixlan \
-    --env KAFKA_HOST="host:9092"
+    --env KAFKA_HOST="host:9092" \
     internethealthreport/peeringdb netixlan.py
 ```
 

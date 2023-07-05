@@ -7,10 +7,10 @@
 #
 # Usage:
 #   - docker run --rm --name ix \
-#       -e KAFKA_HOST="kafka1:9092"
+#       -e KAFKA_HOST="kafka1:9092" \
 #       internethealthreport/peeringdb ix.py
 #   - docker run --rm --name netixlan \
-#       -e KAFKA_HOST="kafka:9092"
+#       -e KAFKA_HOST="kafka:9092" \
 #       internethealthreport/peeringdb netixlan.py
 #   
 # Note:
