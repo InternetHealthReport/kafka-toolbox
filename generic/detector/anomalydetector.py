@@ -68,13 +68,14 @@ class AnomalyDetector():
             })
 
         self.consumer.subscribe([self.kafka_topic_in])
-        self.detection_starttime = self.get_current_timestamp()
-        logging.info('Detection starttime set to: {}'.format(self.detection_starttime))
 
         # Initialize kafka producer
         self.producer = Producer({'bootstrap.servers': 'kafka1:9092,kafka2:9092,kafka3:9092',
             'default.topic.config': {'compression.codec': 'snappy'}}) 
 
+        # Set start time
+        self.detection_starttime = self.get_current_timestamp()
+        logging.info('Detection starttime set to: {}'.format(self.detection_starttime))
 
 
     def get_current_timestamp(self):
@@ -110,6 +111,7 @@ class AnomalyDetector():
             self.consumer.seek(offset)
 
         logging.info('Fetching historical data...')
+
         while True:
             msg = self.consumer.poll()
 

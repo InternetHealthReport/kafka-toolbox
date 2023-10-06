@@ -84,7 +84,7 @@ def produce(ids):
 if __name__ == "__main__":
     # Environment Variables
     KAFKA_HOST = os.environ["KAFKA_HOST"]
-    OUTPUT_TOPIC = os.environ.get("OUTPUT_TOPIC", "measurement_ids")
+    OUTPUT_TOPIC = os.environ.get("OUTPUT_TOPIC", "atlas_measurement_ids")
 
     # Logging
     logging.basicConfig(
