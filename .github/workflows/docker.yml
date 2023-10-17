@@ -24,6 +24,14 @@ jobs:
                 name: peeringdb
                 context: ./peeringdb/producers
                 python-version: 3.8
+              - dockerfile: ./atlas/producers/Dockerfile.traceroute
+                name: traceroute
+                context: ./atlas/producers
+                python-version: 3.8
+              - dockerfile: ./atlas/producers/Dockerfile.measurements
+                name: measurement_ids
+                context: ./atlas/producers
+                python-version: 3.8
         steps:
             - uses: actions/checkout@v3
             - name: Setup Docker Buildx
