@@ -60,7 +60,7 @@ docker compose down
 ```bash
 docker run --rm --name ix \
     --env KAFKA_HOST="host:9092" \
-    internethealthreport/traceroute -C ihr-globa.conf
+    internethealthreport/traceroute -C ihr-global.conf
 ```
 
 
