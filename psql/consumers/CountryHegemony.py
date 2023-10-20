@@ -1,3 +1,4 @@
+import os
 import sys
 import psycopg2
 import psycopg2.extras
@@ -25,16 +26,14 @@ class saverPostgresql(object):
                 'AP': 'Asia-Pacific'
                 }
 
-        conn_string = "host='127.0.0.1' dbname='%s'" % dbname
-
-        self.conn = psycopg2.connect(conn_string)
+        self.conn = psycopg2.connect(DB_CONNECTION_STRING)
         columns=("timebin", "country_id", "asn_id", "hege", "af", "weight", "weightscheme", "transitonly")
         self.cpmgr = CopyManager(self.conn, 'ihr_hegemony_country', columns)
         self.cursor = self.conn.cursor()
         logging.debug("Connected to the PostgreSQL server")
 
         self.consumer = Consumer({
-            'bootstrap.servers': 'kafka1:9092, kafka2:9092, kafka3:9092',
+            'bootstrap.servers': KAFKA_HOST,
             'group.id': 'ihr_hegemony_countries_psql_sink_ipv{}'.format(self.af),
             'auto.offset.reset': 'earliest',
             })
@@ -131,8 +130,17 @@ if __name__ == "__main__":
         print("usage: %s af" % sys.argv[0])
         sys.exit()
 
-    FORMAT = '%(asctime)s %(processName)s %(message)s'
-    logging.basicConfig(format=FORMAT, filename='ihr-kafka-psql-HegemonyCountry.log', level=logging.WARN, datefmt='%Y-%m-%d %H:%M:%S')
+    logging.basicConfig(
+            format='%(asctime)s %(processName)s %(message)s',
+            level=logging.info,
+            datefmt='%Y-%m-%d %H:%M:%S',
+            handlers=[logging.StreamHandler()])
+
+    global KAFKA_HOST
+    KAFKA_HOST = os.environ["KAFKA_HOST"]
+    global DB_CONNECTION_STRING
+    DB_CONNECTION_STRING = os.environ["DB_CONNECTION_STRING"]
+
     logging.warning("Started: %s" % sys.argv)
 
     af = int(sys.argv[1])
