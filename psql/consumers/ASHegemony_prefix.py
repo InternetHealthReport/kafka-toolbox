@@ -9,7 +9,6 @@ from pgcopy import CopyManager
 from confluent_kafka import Consumer, TopicPartition, KafkaError
 import logging
 from collections import defaultdict
-import json
 import msgpack
 from datetime import datetime
 import arrow
@@ -35,8 +34,6 @@ class saverPostgresql(object):
     def __init__(self, topic, af, start, end, host="localhost", dbname="ihr"):
 
         self.prevts = 0 
-        # TODO: get names from Kafka 
-        # self.asNames = defaultdict(str, json.load(open("/home/romain/Projects/perso/ashash/data/asNames.json")))
         self.af = int(af)
         self.dataHege = [] 
         self.hegemonyCone = defaultdict(int)
@@ -221,7 +218,7 @@ class saverPostgresql(object):
                         "INSERT INTO ihr_asn(number, name, tartiflette, disco, ashash) \
                                 select %s, %s, FALSE, FALSE, FALSE \
                                 WHERE NOT EXISTS ( SELECT number FROM ihr_asn WHERE number = %s)", 
-                                (originasn, self.asNames["AS"+str(originasn)], originasn))
+                                (originasn, '', originasn))
 
             asn = msg['asn']
             hege = msg['hege']
@@ -234,7 +231,7 @@ class saverPostgresql(object):
                         "INSERT INTO ihr_asn(number, name, tartiflette, disco, ashash) \
                                 select %s, %s, FALSE, FALSE, FALSE \
                                 WHERE NOT EXISTS ( SELECT number FROM ihr_asn WHERE number = %s)", 
-                                (asn, self.asNames["AS"+str(asn)], asn))
+                                (asn, '', asn))
 
             # Hegemony values to copy in the database
             if hege!= 0:

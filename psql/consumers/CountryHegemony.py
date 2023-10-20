@@ -5,8 +5,6 @@ import psycopg2.extras
 from pgcopy import CopyManager
 from confluent_kafka import Consumer 
 import logging
-from collections import defaultdict
-import json
 import msgpack
 from datetime import datetime
 from iso3166 import countries
