@@ -19,6 +19,7 @@
 #        - ASHegemony_prefix.py ihr_hegemony_prefix 4
 #        - ASHegemony_prefix.py ihr_hegemony_prefix_v6 6
 #        - disco.py
+#        - anomalyDetector.py config-file-path
 #   
 # Note:
 #   - You have to pass set environment variable KAFKA_HOST (eg. `--env KAFKA_HOST="kafka:9092") 

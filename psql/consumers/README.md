@@ -50,6 +50,10 @@ KAFKA_HOST=host:9092 DB_CONNECTION_STRING="host=127.0.0.1 db=ihr_db" python ASHe
 ```bash
 KAFKA_HOST=host:9092 DB_CONNECTION_STRING="host=127.0.0.1 db=ihr_db" python disco.py
 ```
+
+```bash
+KAFKA_HOST=host:9092 DB_CONNECTION_STRING="host=127.0.0.1 db=ihr_db" python anomalyDetector.py conf
+```
 ## 2. Docker
 
 - install Docker from [here](https://docs.docker.com/engine/install/)
