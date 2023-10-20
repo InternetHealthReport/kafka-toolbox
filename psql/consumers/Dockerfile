@@ -10,7 +10,7 @@
 #       -e KAFKA_HOST="kafka1:9092" \
 #       -e DB_CONNECTION_STRING="host=127.0.0.1 dbname=ihr_db"
 #       internethealthreport/psql-consumers [script_name] [args]
-#   - [script name] examples:
+#   - [script name] [args] examples:
 #        - network-delay.py
 #        - ASHegemony.py 4
 #        - CountryHegemony.py 4
@@ -25,13 +25,28 @@
 #   - Config files are already included in the container.
 
 ARG IMAGE_VERSION="ihr"
-ARG PYTHON_VERSION="3.8"
+ARG PYTHON_VERSION="3.6"
 
 FROM internethealthreport/python:${PYTHON_VERSION}-${IMAGE_VERSION}
 
+# Switch to root install dependencies
+USER root
+
+SHELL ["/bin/bash", "-c"]
+
 COPY ./requirements.txt .
 
-RUN pip install -r requirements.txt
+# Install GCC & Libpq to to install `requirements.txt`
+# and remove it after installation.
+RUN DEBIAN_FRONTEND=noninteractive apt-get update \
+    && apt-get install build-essential gcc libpq-dev -y --no-install-recommends \
+    && pip install -r requirements.txt \
+    && apt-get purge build-essential gcc -y \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
+
+# Switch back to ihr user to run rootless
+USER ihr:ihr
 
 COPY . .
 
