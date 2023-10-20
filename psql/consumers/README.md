@@ -47,6 +47,9 @@ KAFKA_HOST=host:9092 DB_CONNECTION_STRING="host=127.0.0.1 db=ihr_db" python ASHe
 KAFKA_HOST=host:9092 DB_CONNECTION_STRING="host=127.0.0.1 db=ihr_db" python ASHegemony_prefix.py ihr_hegemony_prefix_v6 6
 ```
 
+```bash
+KAFKA_HOST=host:9092 DB_CONNECTION_STRING="host=127.0.0.1 db=ihr_db" python disco.py
+```
 ## 2. Docker
 
 - install Docker from [here](https://docs.docker.com/engine/install/)
@@ -56,7 +59,7 @@ KAFKA_HOST=host:9092 DB_CONNECTION_STRING="host=127.0.0.1 db=ihr_db" python ASHe
 docker run --rm --name ix \
   -e KAFKA_HOST="kafka1:9092" \
   -e DB_CONNECTION_STRING="host=127.0.0.1 dbname=ihr_db" \
-  internethealthreport/psql-consumers ASHegemony.py 4
+  internethealthreport/psql_consumers ASHegemony.py 4
 ```
 
 - or any other script.

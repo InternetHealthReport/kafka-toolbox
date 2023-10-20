@@ -9,7 +9,7 @@
 #   - docker run --rm --name ix \
 #       -e KAFKA_HOST="kafka1:9092" \
 #       -e DB_CONNECTION_STRING="host=127.0.0.1 dbname=ihr_db"
-#       internethealthreport/psql-consumers [script_name] [args]
+#       internethealthreport/psql_consumers [script_name] [args]
 #   - [script name] [args] examples:
 #        - network-delay.py
 #        - ASHegemony.py 4
@@ -18,6 +18,7 @@
 #        - ASHegemony.py ihr_hegemony_v6 6 
 #        - ASHegemony_prefix.py ihr_hegemony_prefix 4
 #        - ASHegemony_prefix.py ihr_hegemony_prefix_v6 6
+#        - disco.py
 #   
 # Note:
 #   - You have to pass set environment variable KAFKA_HOST (eg. `--env KAFKA_HOST="kafka:9092") 
