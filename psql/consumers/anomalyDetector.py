@@ -1,3 +1,4 @@
+import os
 import sys
 import psycopg2
 import psycopg2.extras
@@ -5,8 +6,6 @@ from pgcopy import CopyManager
 from confluent_kafka import Consumer 
 import logging
 from logging.config import fileConfig
-from collections import defaultdict
-import json
 import msgpack
 from datetime import datetime
 import configparser
@@ -26,8 +25,6 @@ class saverPostgresql(object):
         config = configparser.ConfigParser()
         config.read(conf_fname)
 
-        self.psql_host = config.get('psql', 'hostname')
-        self.psql_dbname = config.get('psql', 'dbname')
         self.psql_table = config.get('psql', 'table')
         self.psql_columns = [column for column in config.get('psql', 'columns').split(',')]
         self.psql_columns_type = [key for key in config.get('psql', 'columns_type').split(',')]
@@ -39,19 +36,17 @@ class saverPostgresql(object):
 
         # Initialize logger
         fileConfig(conf_fname)
-        logger = logging.getLogger()
         logging.info("Started: {}".format(sys.argv))
 
         # Connect to PostgreSQL
-        conn_string = "host='{}' dbname='{}'".format(self.psql_host, self.psql_dbname)
-        self.conn = psycopg2.connect(conn_string)
+        self.conn = psycopg2.connect(DB_CONNECTION_STRING)
         self.cpmgr = CopyManager(self.conn, self.psql_table, self.psql_columns)
         self.cursor = self.conn.cursor()
         logging.debug("Connected to the PostgreSQL server")
 
         # Initialize Kafka consumer
         self.consumer = Consumer({
-            'bootstrap.servers': 'kafka1:9092, kafka2:9092, kafka3:9092',
+            'bootstrap.servers': KAFKA_HOST,
             'group.id': self.kafka_consumer_group,
             'auto.offset.reset': 'earliest',
             })
@@ -159,6 +154,17 @@ class saverPostgresql(object):
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+            format='%(asctime)s %(processName)s %(message)s',
+            level=logging.info,
+            datefmt='%Y-%m-%d %H:%M:%S',
+            handlers=[logging.StreamHandler()])
+
+    global KAFKA_HOST
+    KAFKA_HOST = os.environ["KAFKA_HOST"]
+    global DB_CONNECTION_STRING
+    DB_CONNECTION_STRING = os.environ["DB_CONNECTION_STRING"]
+
     if len(sys.argv)<2:
         print("usage: %s config.ini" % sys.argv[0])
         sys.exit()

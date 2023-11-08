@@ -1,3 +1,4 @@
+import os
 import sys
 import psycopg2
 import psycopg2.extras
@@ -26,25 +27,25 @@ class saverOutDelay(object):
         self.cpmgr = None
 
         # PSQL initialisation
-        local_port = 5432
-        if host != "localhost" and host!="127.0.0.1":
-            from sshtunnel import SSHTunnelForwarder
-            self.server = SSHTunnelForwarder(
-                host,
-                ssh_username="romain",
-                ssh_private_key="/home/romain/.ssh/id_rsa",
-                remote_bind_address=('127.0.0.1', 5432),
-                set_keepalive=60) 
+        # local_port = 5432
+        # if host != "localhost" and host!="127.0.0.1":
+        #     from sshtunnel import SSHTunnelForwarder
+        #     self.server = SSHTunnelForwarder(
+        #         host,
+        #         ssh_username="romain",
+        #         ssh_private_key="/home/romain/.ssh/id_rsa",
+        #         remote_bind_address=('127.0.0.1', 5432),
+        #         set_keepalive=60) 
 
-            self.server.start()
-            logging.debug("SSH tunnel opened")
-            local_port = str(self.server.local_bind_port)
+        #     self.server.start()
+        #     logging.debug("SSH tunnel opened")
+        #     local_port = str(self.server.local_bind_port)
 
-            conn_string = "host='127.0.0.1' port='%s' dbname='%s'" % (local_port, dbname)
-        else:
-            conn_string = "host='127.0.0.1' dbname='%s'" % dbname
+        #     conn_string = "host='127.0.0.1' port='%s' dbname='%s'" % (local_port, dbname)
+        # else:
+        #     conn_string = "host='127.0.0.1' dbname='%s'" % dbname
 
-        self.conn = psycopg2.connect(conn_string)
+        self.conn = psycopg2.connect(DB_CONNECTION_STRING)
         columns=("timebin", "startpoint_id", "endpoint_id", "median", 
                 "nbtracks","nbprobes", "entropy", "hop", "nbrealrtts" )
         self.cpmgr = CopyManager(self.conn, 'ihr_atlas_delay', columns)
@@ -57,7 +58,7 @@ class saverOutDelay(object):
 
         # Kafka consumer initialisation
         self.consumer = Consumer({
-            'bootstrap.servers': 'kafka1:9092, kafka2:9092, kafka3:9092',
+            'bootstrap.servers': KAFKA_HOST,
             'group.id': 'ihr_raclette_diffrtt_sink0',
             'auto.offset.reset': 'earliest',
             })
@@ -143,9 +144,17 @@ class saverOutDelay(object):
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+            format='%(asctime)s %(processName)s %(message)s',
+            level=logging.info,
+            datefmt='%Y-%m-%d %H:%M:%S',
+            handlers=[logging.StreamHandler()])
 
-    FORMAT = '%(asctime)s %(processName)s %(message)s'
-    logging.basicConfig(format=FORMAT, filename='ihr-kafka-psql-out-delay.log', level=logging.WARN, datefmt='%Y-%m-%d %H:%M:%S')
+    global KAFKA_HOST
+    KAFKA_HOST = os.environ["KAFKA_HOST"]
+    global DB_CONNECTION_STRING
+    DB_CONNECTION_STRING = os.environ["DB_CONNECTION_STRING"]
+
     logging.warning("Started: %s" % sys.argv)
 
     sod = saverOutDelay()

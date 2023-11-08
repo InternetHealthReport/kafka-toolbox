@@ -1,3 +1,4 @@
+import os
 import sys
 import psycopg2
 from confluent_kafka import Consumer 
@@ -18,13 +19,12 @@ class saverPostgresql(object):
         self.pdc.start()
         logging.info('Loaded info for {} probes'.format(len(self.probeInfo)))
 
-        conn_string = "host='127.0.0.1' dbname='%s'" % dbname
-        self.conn = psycopg2.connect(conn_string)
+        self.conn = psycopg2.connect(DB_CONNECTION_STRING)
         self.cursor = self.conn.cursor()
         logging.debug("Connected to the PostgreSQL server")
 
         self.consumer_bursts = Consumer({
-            'bootstrap.servers': 'kafka1:9092, kafka2:9092, kafka3:9092',
+            'bootstrap.servers': KAFKA_HOST,
             'group.id': 'ihr_disco_bursts_psql_sink0',
             'auto.offset.reset': 'earliest',
             'enable.auto.commit': 'false',
@@ -32,7 +32,7 @@ class saverPostgresql(object):
         self.consumer_bursts.subscribe(['ihr_disco_bursts{}'.format(suffix)])
 
         self.consumer_reconnect = Consumer({
-            'bootstrap.servers': 'kafka1:9092, kafka2:9092, kafka3:9092',
+            'bootstrap.servers': KAFKA_HOST,
             'group.id': 'ihr_disco_reconnect_psql_sink0',
             'auto.offset.reset': 'earliest',
             'enable.auto.commit': 'false',
@@ -185,8 +185,17 @@ class saverPostgresql(object):
 
 
 if __name__ == "__main__":
-    FORMAT = '%(asctime)s %(processName)s %(message)s'
-    logging.basicConfig(format=FORMAT, filename='ihr-kafka-psql-disco.log', level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S')
+    logging.basicConfig(
+            format='%(asctime)s %(processName)s %(message)s',
+            level=logging.info,
+            datefmt='%Y-%m-%d %H:%M:%S',
+            handlers=[logging.StreamHandler()])
+
+    global KAFKA_HOST
+    KAFKA_HOST = os.environ["KAFKA_HOST"]
+    global DB_CONNECTION_STRING
+    DB_CONNECTION_STRING = os.environ["DB_CONNECTION_STRING"]
+
     logging.warning("Started: %s" % sys.argv)
 
     # to push results from 'one year batch', set the suffix and comment the main

@@ -1,6 +1,7 @@
 # By default this script will push data for the current day and ignore data
 # for following days. It assumes that the data for the current day is ordered.
 
+import os
 import sys
 import psycopg2
 import psycopg2.extras
@@ -8,7 +9,6 @@ from pgcopy import CopyManager
 from confluent_kafka import Consumer, TopicPartition, KafkaError
 import logging
 from collections import defaultdict
-import json
 import msgpack
 from datetime import datetime
 import arrow
@@ -30,8 +30,6 @@ class saverPostgresql(object):
     def __init__(self, topic, af, start, end, host="localhost", dbname="ihr"):
 
         self.prevts = 0 
-        # TODO: get names from Kafka 
-        self.asNames = defaultdict(str, json.load(open("/home/romain/Projects/perso/ashash/data/asNames.json")))
         self.af = int(af)
         self.dataHege = [] 
         self.hegemonyCone = defaultdict(int)
@@ -39,9 +37,9 @@ class saverPostgresql(object):
         self.partition_paused = 0
         self.cpmgr = None
 
-        conn_string = "host='127.0.0.1' dbname='%s'" % dbname
+        # conn_string = "host='127.0.0.1' dbname='%s'" % dbname
 
-        self.conn = psycopg2.connect(conn_string)
+        self.conn = psycopg2.connect(DB_CONNECTION_STRING)
         columns=("timebin", "originasn_id", "asn_id", "hege", "af")
         self.cpmgr = CopyManager(self.conn, "ihr_hegemony", columns)
         self.cursor = self.conn.cursor()
@@ -51,7 +49,7 @@ class saverPostgresql(object):
         self.start_ts = int(start.timestamp())
 
         self.consumer = Consumer({
-            'bootstrap.servers': 'kafka1:9092, kafka2:9092, kafka3:9092',
+            'bootstrap.servers': KAFKA_HOST,
             'group.id': 'ihr_psql_sink_{}'.format(self.start_ts),
             'auto.offset.reset': 'earliest',
             'fetch.min.bytes': 100000,
@@ -159,7 +157,7 @@ class saverPostgresql(object):
                     "INSERT INTO ihr_asn(number, name, tartiflette, disco, ashash) \
                             select %s, %s, FALSE, FALSE, TRUE \
                             WHERE NOT EXISTS ( SELECT number FROM ihr_asn WHERE number = %s)", 
-                            (msg['scope'], self.asNames["AS"+str(msg['scope'])], msg['scope']))
+                            (msg['scope'], '', msg['scope']))
                 self.cursor.execute("UPDATE ihr_asn SET ashash = TRUE where number = %s", (int(msg['scope']),))
             except psycopg2.errors.UniqueViolation:
                 # ASN is already in the database
@@ -177,7 +175,7 @@ class saverPostgresql(object):
                     "INSERT INTO ihr_asn(number, name, tartiflette, disco, ashash) \
                             select %s, %s, FALSE, FALSE, TRUE \
                             WHERE NOT EXISTS ( SELECT number FROM ihr_asn WHERE number = %s)", 
-                            (asn, self.asNames["AS"+str(asn)], asn))
+                            (asn, '', asn))
             self.cursor.execute("UPDATE ihr_asn SET ashash = TRUE where number = %s", (int(asn),))
 
         # Hegemony values to copy in the database
@@ -230,12 +228,21 @@ class saverPostgresql(object):
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+            format='%(asctime)s %(processName)s %(message)s',
+            level=logging.info,
+            datefmt='%Y-%m-%d %H:%M:%S',
+            handlers=[logging.StreamHandler()])
+
+    global KAFKA_HOST
+    KAFKA_HOST = os.environ["KAFKA_HOST"]
+    global DB_CONNECTION_STRING
+    DB_CONNECTION_STRING = os.environ["DB_CONNECTION_STRING"]
+
     if len(sys.argv)<2:
         print("usage: %s topic af [starttime endtime]" % sys.argv[0])
         sys.exit()
 
-    FORMAT = '%(asctime)s %(processName)s %(message)s'
-    logging.basicConfig(format=FORMAT, filename='ihr-kafka-psql-ASHegemony.log', level=logging.DEBUG, datefmt='%Y-%m-%d %H:%M:%S')
 
     topic = sys.argv[1]
     af = int(sys.argv[2])

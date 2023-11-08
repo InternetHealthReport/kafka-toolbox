@@ -9,6 +9,5 @@ msgpack_python==0.5.6
 pgcopy==1.5.0
 psycopg2==2.9.5
 py_radix==0.10.0
-radix==0.5
 rov==0.4.0
 sshtunnel==0.4.0

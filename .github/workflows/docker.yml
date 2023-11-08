@@ -32,6 +32,10 @@ jobs:
                 name: measurement_ids
                 context: ./atlas/producers
                 python-version: 3.8
+              - dockerfile: ./psql/consumers/Dockerfile
+                name: psql_consumers
+                context: ./psql/consumers
+                python-version: 3.8
         steps:
             - uses: actions/checkout@v3
             - name: Setup Docker Buildx
