@@ -61,7 +61,7 @@ class saverPostgresql(object):
         partitions = [TopicPartition(topic, partition_id, self.start_ts*1000) 
                 for partition_id in  topic_info.topics[topic].partitions.keys()]
 
-        self.partitions = self.consumer.offsets_for_times( partitions )
+        self.partitions = [part for part in self.consumer.offsets_for_times( partitions )]
         self.consumer.assign(self.partitions)
 
 
