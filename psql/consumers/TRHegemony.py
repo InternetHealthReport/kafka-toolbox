@@ -1,8 +1,10 @@
 import argparse
+import configparser
 import logging
 import os
 import sys
 from datetime import datetime
+from logging.config import fileConfig
 
 import msgpack
 import psycopg2
@@ -15,22 +17,39 @@ class saverTRHegemony(object):
 
     """Dumps traceroute hegemony results to the Postgresql database. """
 
-    def __init__(self, topicname, af):
+    def __init__(self, config_file):
         """ Initialization:
         - Connects to postgresql
         - Fetch current identifiers
         - Subscribe to the kafka topic
         """
 
+        # Initialize logger
+        fileConfig(config_file)
+        logging.info("Started: {}".format(sys.argv))
+
+        # Read the config file
+        config = configparser.ConfigParser()
+        config.read(config_file)
+
         self.prevts = 0
         self.currenttimebin = None
         self.data = []
         self.cpmgr = None
-        self.af = af
+        kafka_topic = config.get('kafka', 'input_topic')
+        kafka_consumer_group = config.get('kafka', 'consumer_group')
+        self.af = config.getint('kafka', 'input_af')
+        if self.af not in (4, 6):
+            logging.error(f'Invalid address family specified: {self.af}')
+            raise ValueError(f'Invalid address family specified: {self.af}')
+
+        table = config.get('psql', 'table')
+        columns = [column for column in config.get('psql', 'columns').split(',')]
+
+
 
         self.conn = psycopg2.connect(DB_CONNECTION_STRING)
-        columns = ("timebin", "origin_id", "dependency_id", "hege", "af")
-        self.cpmgr = CopyManager(self.conn, 'ihr_tr_hegemony', columns)
+        self.cpmgr = CopyManager(self.conn, table, columns)
         self.cursor = self.conn.cursor()
         logging.debug("Connected to the PostgreSQL server")
 
@@ -41,11 +60,11 @@ class saverTRHegemony(object):
         # Kafka consumer initialization
         self.consumer = Consumer({
             'bootstrap.servers': KAFKA_HOST,
-            'group.id': 'ihr_tr_hegemony_sink',
+            'group.id': kafka_consumer_group,
             'auto.offset.reset': 'earliest',
         })
 
-        self.consumer.subscribe([topicname])
+        self.consumer.subscribe([kafka_topic])
 
         self.run()
 
@@ -100,14 +119,19 @@ class saverTRHegemony(object):
         # be x - 3 weeks, which is why we need to correct it here before putting it into
         # the database.
         # 3 weeks * 7 days * 24 hours * 60 minutes * 60 seconds
-        msg['ts'] += 3 * 7 * 24 * 60 * 60
+        msg['timestamp'] += 3 * 7 * 24 * 60 * 60
 
         # Update the current bin timestamp
-        if self.prevts != msg['ts']:
+        if self.prevts != msg['timestamp']:
             self.commit()
-            self.prevts = msg['ts']
-            self.currenttimebin = datetime.utcfromtimestamp(msg['ts'])
+            self.prevts = msg['timestamp']
+            self.currenttimebin = datetime.utcfromtimestamp(msg['timestamp'])
             logging.debug("start recording tr hegemony results (ts={})".format(self.currenttimebin))
+
+        # Only push scores that are based on traceroutes from at least 10 probe ASes.
+        nbsamples = msg['nb_peers']
+        if nbsamples < 10:
+            return
 
         origin_identifier = self.transform_identifier(msg['scope'])
         dependency_identifier = self.transform_identifier(msg['asn'])
@@ -129,7 +153,8 @@ class saverTRHegemony(object):
             self.identifiers[origin_identifier],
             self.identifiers[dependency_identifier],
             msg['hege'],
-            self.af
+            self.af,
+            nbsamples
         ))
 
     def commit(self):
@@ -159,11 +184,8 @@ if __name__ == "__main__":
     global DB_CONNECTION_STRING
     DB_CONNECTION_STRING = os.environ["DB_CONNECTION_STRING"]
 
-    logging.warning("Started: %s" % sys.argv)
-
     parser = argparse.ArgumentParser()
-    parser.add_argument('kafka_topic')
-    parser.add_argument('ip_version', type=int, choices=[4, 6])
+    parser.add_argument('config')
     args = parser.parse_args()
 
-    sod = saverTRHegemony(args.kafka_topic, args.ip_version)
+    sod = saverTRHegemony(args.config)
