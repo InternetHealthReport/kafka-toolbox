@@ -1,0 +1,62 @@
+---
+version: '3.9'
+
+services:
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    ports:
+      - 8080:8080
+    depends_on:
+      - broker1
+      - broker2
+    environment:
+      KAFKA_CLUSTERS_0_NAME: Main Cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "broker1:9092,broker2:9092"
+      DYNAMIC_CONFIG_ENABLED: 'true'
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.2
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  broker1:
+    image: confluentinc/cp-kafka:7.3.2
+    ports:
+      - "9092:9092"
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker1:9092,PLAINTEXT_INTERNAL://broker1:29092
+      BOOTSTRAP_SERVERS: "broker1:9092,broker2:9092"
+
+  broker2:
+    image: confluentinc/cp-kafka:7.3.2
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 2
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker2:9092,PLAINTEXT_INTERNAL://broker2:29092
+      BOOTSTRAP_SERVERS: "broker1:9092,broker2:9092"
+  
+  traceroute:
+    image: internethealthreport/traceroute
+    environment:
+      KAFKA_HOST: "broker1:9092,broker2:9092"
+    command: ["-C", "ihr-global.conf"]
+    depends_on:
+      - broker1
+      - broker2
+
+  measurements:
+    image: internethealthreport/measurements
+    environment:
+      KAFKA_HOST: "broker1:9092,broker2:9092"
+    depends_on:
+      - broker1
+      - broker2

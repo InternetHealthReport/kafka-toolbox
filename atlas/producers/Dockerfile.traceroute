@@ -1,0 +1,33 @@
+# syntax=docker/dockerfile:1
+
+###############################################################################
+# Documentation
+#
+# Component: Traceroute Producer
+#
+# Usage:
+#   - docker run --rm --name traceroute-producer \
+#       --env KAFKA_HOST="kafka:9092" \
+#       internethealthreport/traceroute -C ihr-global.conf
+#   - to pass a configuration file from outside (custom.conf), you have to mount it inside the container, eg:
+#       docker run --rm \
+#           --name custom-traceroute \
+#           --env KAFKA_HOST="kafka:9092" \
+#           --mount type=bind,source=$(pwd)/custom.conf,target=/app/custom.conf \
+#           internethealthreport/traceroute -C custom.conf
+#   
+# Note:
+#   - You have to pass set environment variable KAFKA_HOST (eg. `--env KAFKA_HOST="kafka:9092") 
+
+ARG IMAGE_VERSION="ihr"
+ARG PYTHON_VERSION="3.8"
+
+FROM internethealthreport/python:${PYTHON_VERSION}-${IMAGE_VERSION}
+
+COPY ./requirements.txt .
+
+RUN pip install -r requirements.txt
+
+COPY traceroute.py ihr-global.conf .
+
+ENTRYPOINT ["python", "traceroute.py"]

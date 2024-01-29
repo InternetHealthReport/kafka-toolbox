@@ -1,0 +1,10 @@
+[main]
+
+[io]
+# Options for the traceroute producer/consumer
+kafka_topic=ihr_atlas_traceroutev4
+
+start =
+stop =
+chunk_size=300
+probe_ids=

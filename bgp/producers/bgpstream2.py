@@ -7,6 +7,7 @@ from datetime import datetime
 from datetime import timedelta
 import msgpack
 import logging
+import os
 
 
 def dt2ts(dt):
@@ -59,7 +60,7 @@ def pushData(record_type, collector, startts, endts):
 
     # Create kafka topic
     topic = "ihr_bgp_" + collector + "_" + record_type
-    admin_client = AdminClient({'bootstrap.servers':'kafka1:9092, kafka2:9092, kafka3:9092'})
+    admin_client = AdminClient({'bootstrap.servers': KAFKA_HOST})
 
     topic_list = [NewTopic(topic, num_partitions=1, replication_factor=2)]
     created_topic = admin_client.create_topics(topic_list)
@@ -71,7 +72,7 @@ def pushData(record_type, collector, startts, endts):
             logging.warning("Failed to create topic {}: {}".format(topic, e))
 
     # Create producer
-    producer = Producer({'bootstrap.servers': 'kafka1:9092,kafka2:9092,kafka3:9092',
+    producer = Producer({'bootstrap.servers': KAFKA_HOST,
         # 'linger.ms': 1000, 
         'queue.buffering.max.messages': 10000000,
         'queue.buffering.max.kbytes': 2097151,
@@ -119,6 +120,9 @@ def pushData(record_type, collector, startts, endts):
     producer.flush()
 
 if __name__ == '__main__':
+
+    global KAFKA_HOST
+    KAFKA_HOST = os.environ["KAFKA_HOST"]
 
     text = "This script pushes BGP data from specified collector(s) \
 for the specified time window to Kafka topic(s). The created topics have only \
@@ -178,8 +182,10 @@ is given then it download data for the current hour."
 
     FORMAT = '%(asctime)s %(processName)s %(message)s'
     logging.basicConfig(
-            format=FORMAT, filename='log/ihr-kafka-bgpstream2_{}.log'.format(collector) , 
-            level=logging.WARN, datefmt='%Y-%m-%d %H:%M:%S'
+            format=FORMAT, 
+            level=logging.WARN,
+            datefmt='%Y-%m-%d %H:%M:%S',
+            handlers=[logging.StreamHandler()]
             )
     logging.warning("Started: %s" % sys.argv)
     logging.warning("Arguments: %s" % args)

@@ -11,7 +11,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description = text)  
     parser.add_argument("--topic","-t",help="Selected topic")
     parser.add_argument("--num_msg","-n",help="Number of messages to print", default=1, type=int)
-    parser.add_argument("--server","-s",help="Bootstrap server", default='kafka1:9092')
+    parser.add_argument("--server","-s",help="Bootstrap server", default='localhost:9092')
     parser.add_argument("--partition","-p",help="Partition number", type=int, default=0)
 
     args = parser.parse_args() 

@@ -1,0 +1,29 @@
+# syntax=docker/dockerfile:1
+
+###############################################################################
+# Documentation
+#
+# Component: Long-lasting Measurement IDs
+#
+# Usage:
+#   - docker run --rm --name measurements \
+#       --env KAFKA_HOST="kafka:9092" \
+#       internethealthreport/measurement_ids
+#   
+# Note:
+#   - You have to set environment variable KAFKA_HOST (eg. `--env KAFKA_HOST="kafka:9092") 
+#   - You may want to set environment variable OUTPUT_TOPIC (eg. `--env OUTPUT_TOPIC="new_topic_name") 
+#      to change the default topic name (atlas_measurements)
+
+ARG IMAGE_VERSION="ihr"
+ARG PYTHON_VERSION="3.8"
+
+FROM internethealthreport/python:${PYTHON_VERSION}-${IMAGE_VERSION}
+
+COPY ./requirements.txt .
+
+RUN pip install -r requirements.txt
+
+COPY getMsmIds.py .
+
+ENTRYPOINT ["python", "getMsmIds.py"]
