@@ -70,22 +70,22 @@ class saverTRHegemony(object):
 
     def transform_identifier(self, identifier: str):
         if identifier.startswith('as|'):
-            return ('AS', identifier.removeprefix('as|'), self.af)
+            return ('AS', identifier.lstrip('as|'), self.af)
         if identifier.startswith('ip|'):
-            return ('IP', identifier.removeprefix('ip|'), self.af)
+            return ('IP', identifier.lstrip('ip|'), self.af)
         if not identifier.startswith('ix|'):
             logging.error(f'Invalid identifier: {identifier}')
             return tuple()
         # Must be IXP or IXP member entry, both starting with 'ix|'.
         if ';' in identifier:
             ix_id, asn = identifier.split(';')
-            ix_id = ix_id.removeprefix('ix|')
-            asn = asn.removeprefix('as|')
+            ix_id = ix_id.lstrip('ix|')
+            asn = asn.lstrip('as|')
             if asn == '0':
                 # Member interface IP could not be mapped to an ASN.
                 return tuple()
             return ('MB', f'{ix_id};{asn}', self.af)
-        return ('IX', identifier.removeprefix('ix|'), self.af)
+        return ('IX', identifier.lstrip('ix|'), self.af)
 
     def run(self):
         """
