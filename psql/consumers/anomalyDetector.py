@@ -122,7 +122,7 @@ class saverPostgresql(object):
                 if field in msg:
                     row.append(self.cast(msg[field], field_type))
                 elif 'datapoint' in msg and field in msg['datapoint']:
-                    row.append(self.cast(msg['datapoint'][field], field_type))
+                        row.append(self.cast(msg['datapoint'][field], field_type))
                 elif field in self.kafka_default_values:
                     row.append(self.cast(self.kafka_default_values[field], field_type))
                 else:
@@ -130,6 +130,10 @@ class saverPostgresql(object):
                     return 
         except ValueError:
             logging.error("Error invalid values: {}".format(msg))
+            return
+        except KeyError as e:
+            logging.error('Casting problem: {}'.format(e))
+            logging.error('Corresponding field {} in {}'.format(field, msg))
             return
 
         self.dataBuffer.append(row)
