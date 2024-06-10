@@ -60,10 +60,9 @@ KAFKA_HOST=host:9092 DB_CONNECTION_STRING="host=127.0.0.1 db=ihr_db" python anom
 
 - run AsHegemony.py
 ```bash
-docker run --rm --name ix \
-  -e KAFKA_HOST="kafka1:9092" \
-  -e DB_CONNECTION_STRING="host=127.0.0.1 dbname=ihr_db" \
-  internethealthreport/psql_consumers ASHegemony.py 4
+docker run --rm --name ihr_hegemony_sink_4 \
+  -e KAFKA_HOST="kafka1:9092"   -e DB_CONNECTION_STRING="host=momoka0.iijlab.net dbname=ihr" \
+  internethealthreport/psql_consumers ASHegemony.py ihr_hegemony 4
 ```
 
 - or any other script.
