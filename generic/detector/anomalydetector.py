@@ -1,3 +1,4 @@
+import os
 import sys
 from collections import defaultdict
 import configparser
@@ -6,8 +7,9 @@ from logging.config import fileConfig
 import arrow
 import msgpack
 import statistics
-from confluent_kafka import Consumer, Producer, TopicPartition
 import confluent_kafka
+from confluent_kafka import Consumer, Producer, TopicPartition
+from confluent_kafka.admin import AdminClient, NewTopic
 
 # TODO: how to handle data holes?
 
@@ -62,7 +64,7 @@ class AnomalyDetector():
 
         # Initialize kafka consumer
         self.consumer = Consumer({
-            'bootstrap.servers': 'kafka1:9092, kafka2:9092, kafka3:9092',
+            'bootstrap.servers': KAFKA_HOST,
             'group.id': self.kafka_consumer_group,
             'auto.offset.reset': 'earliest',
             })
@@ -70,8 +72,20 @@ class AnomalyDetector():
         self.consumer.subscribe([self.kafka_topic_in])
 
         # Initialize kafka producer
-        self.producer = Producer({'bootstrap.servers': 'kafka1:9092,kafka2:9092,kafka3:9092',
+        self.producer = Producer({'bootstrap.servers':  KAFKA_HOST,
             'default.topic.config': {'compression.codec': 'snappy'}}) 
+
+        # Create kafka topic
+        admin_client = AdminClient({'bootstrap.servers': KAFKA_HOST})
+
+        topic_list = [NewTopic(self.kafka_topic_out, num_partitions=10, replication_factor=1)]
+        created_topic = admin_client.create_topics(topic_list)
+        for topic, f in created_topic.items():
+            try:
+                f.result()  # The result itself is None
+                logging.warning("Topic {} created".format(topic))
+            except Exception as e:
+                logging.warning("Failed to create topic {}: {}".format(topic, e))
 
         # Set start time
         self.detection_starttime = self.get_current_timestamp()
@@ -200,6 +214,13 @@ class AnomalyDetector():
 
 
 if __name__ == "__main__":
+
+    global KAFKA_HOST
+    if 'KAFKA_HOST' in os.environ:
+        KAFKA_HOST = os.environ["KAFKA_HOST"]
+    else:
+        KAFKA_HOST = 'kafka1:9092,kafka2:9092,kafka3:9092'
+
     if len(sys.argv)<2:
         print("usage: %s config_file" % sys.argv[0])
         sys.exit()
