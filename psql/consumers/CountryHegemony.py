@@ -66,7 +66,7 @@ class saverPostgresql(object):
 
         self.cursor.execute("SELECT code FROM ihr_country")
         self.countries = set([x[0] for x in self.cursor.fetchall()])
-        logging.debug("%s counties registered in the database" % len(self.countries))
+        logging.debug("%s countries registered in the database" % len(self.countries))
 
 
     def save(self, msg):
