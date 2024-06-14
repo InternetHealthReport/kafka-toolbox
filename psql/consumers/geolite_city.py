@@ -14,7 +14,7 @@ class GeoliteCity(object):
 
     def __init__(self) -> None:
         
-        self.folder = appdirs.user_cache_dir('pear', 'ihr')
+        self.folder = appdirs.user_cache_dir('geolite', 'ihr')
         self.dbfname = ''
         self.reader = None
 
