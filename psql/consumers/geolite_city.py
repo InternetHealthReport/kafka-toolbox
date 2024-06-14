@@ -46,7 +46,7 @@ class GeoliteCity(object):
         self.download_database(overwrite=False)
         self.reader = geoip2.database.Reader(self.dbfname)
 
-    def country(self, ip):
+    def lookup(self, ip):
         """Find the country code for the given IP address"""
         cc = "ZZ"
         try:
