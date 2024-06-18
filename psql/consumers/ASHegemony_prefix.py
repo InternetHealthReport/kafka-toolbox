@@ -252,7 +252,8 @@ class saverPostgresql(object):
                     # Add country in psql if needed
                     if cc not in self.countries:
                         self.countries.add(cc)
-                        if cc == 'ZZ':
+                        if cc == 'ZZ' or cc is None:
+                            cc = 'ZZ'
                             country_name = 'Unknown'
                         elif cc in self.continents:
                             country_name = self.continents[cc]
