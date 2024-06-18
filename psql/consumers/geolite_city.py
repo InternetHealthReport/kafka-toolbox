@@ -54,6 +54,9 @@ class GeoliteCity(object):
         except geoip2.errors.AddressNotFoundError:
             pass
 
+        if cc is None:
+            cc = "ZZ"
+
         return cc
 
 
