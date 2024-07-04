@@ -66,7 +66,7 @@ services:
   metis_atlas_deployment_v6_as_path_length:
     image: "internethealthreport/psql_consumers"
     restart: unless-stopped
-    command: anomalyDetector.py metis_atlas_deployment_v4_as_path_length.conf
+    command: anomalyDetector.py metis_atlas_deployment_v6_as_path_length.conf
     env_file:
       - path: .env
         required: true # default
@@ -74,7 +74,7 @@ services:
   metis_atlas_deployment_v6_ip_hops:
     image: "internethealthreport/psql_consumers"
     restart: unless-stopped
-    command: anomalyDetector.py metis_atlas_deployment_v4_ip_hops.conf
+    command: anomalyDetector.py metis_atlas_deployment_v6_ip_hops.conf
     env_file:
       - path: .env
         required: true # default
@@ -82,7 +82,7 @@ services:
   metis_atlas_deployment_v6_rtt:
     image: "internethealthreport/psql_consumers"
     restart: unless-stopped
-    command: anomalyDetector.py metis_atlas_selection_v4_rtt.conf
+    command: anomalyDetector.py metis_atlas_selection_v6_rtt.conf
     env_file:
       - path: .env
         required: true # default
@@ -114,7 +114,7 @@ services:
   metis_atlas_selection_v6_as_path_length:
     image: "internethealthreport/psql_consumers"
     restart: unless-stopped
-    command: anomalyDetector.py metis_atlas_selection_v4_as_path_length.conf
+    command: anomalyDetector.py metis_atlas_selection_v6_as_path_length.conf
     env_file:
       - path: .env
         required: true # default
@@ -122,7 +122,7 @@ services:
   metis_atlas_selection_v6_ip_hops:
     image: "internethealthreport/psql_consumers"
     restart: unless-stopped
-    command: anomalyDetector.py metis_atlas_selection_v4_ip_hops.conf
+    command: anomalyDetector.py metis_atlas_selection_v6_ip_hops.conf
     env_file:
       - path: .env
         required: true # default
@@ -130,7 +130,7 @@ services:
   metis_atlas_selection_v6_rtt:
     image: "internethealthreport/psql_consumers"
     restart: unless-stopped
-    command: anomalyDetector.py metis_atlas_selection_v4_rtt.conf
+    command: anomalyDetector.py metis_atlas_selection_v6_rtt.conf
     env_file:
       - path: .env
         required: true # default
