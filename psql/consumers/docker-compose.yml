@@ -82,7 +82,7 @@ services:
   metis_atlas_deployment_v6_rtt:
     image: "internethealthreport/psql_consumers"
     restart: unless-stopped
-    command: anomalyDetector.py metis_atlas_selection_v6_rtt.conf
+    command: anomalyDetector.py metis_atlas_deployment_v6_rtt.conf
     env_file:
       - path: .env
         required: true # default
