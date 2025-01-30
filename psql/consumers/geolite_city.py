@@ -8,19 +8,19 @@ import tarfile
 import urllib.request as request
 from contextlib import closing
 
-URL = 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key=FzexWm0KCn5LZ12p&suffix=tar.gz'
+URL = 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&suffix=tar.gz&license_key='
+
 
 class GeoliteCity(object):
 
     def __init__(self) -> None:
-        
         self.folder = appdirs.user_cache_dir('geolite', 'ihr')
         self.dbfname = ''
         self.reader = None
 
     def download_database(self, overwrite=True):
 
-        url = URL
+        url = URL+API_KEY
         os.makedirs(self.folder, exist_ok=True)
         fname = '/geolite_city.tar.gz'
 
@@ -39,7 +39,7 @@ class GeoliteCity(object):
             for tar_fname in tar.getnames():
                 if tar_fname.endswith('.mmdb'):
                     self.dbfname = self.folder+'/'+tar_fname
-                
+
             tar.close()
 
     def load_database(self):
@@ -61,6 +61,9 @@ class GeoliteCity(object):
 
 
 if __name__ == '__main__':
+
+    global API_KEY
+    API_KEY = os.environ["MAXMIND_API_KEY"]
 
     gc = GeoliteCity()
     gc.download_database(overwrite=False)
