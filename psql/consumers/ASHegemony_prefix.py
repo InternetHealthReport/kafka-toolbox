@@ -44,7 +44,7 @@ class saverPostgresql(object):
         # conn_string = "host='127.0.0.1' dbname='%s'" % dbname
 
         self.conn = psycopg2.connect(DB_CONNECTION_STRING)
-        columns=("timebin", "prefix", "originasn_id", "asn_id", "country_id", "hege", "rpki_status", "irr_status", "delegated_prefix_status", "delegated_asn_status", "af", "descr", "visibility", "moas")
+        columns=("id", "timebin", "prefix", "originasn_id", "asn_id", "country_id", "hege", "rpki_status", "irr_status", "delegated_prefix_status", "delegated_asn_status", "af", "descr", "visibility", "moas")
         self.cpmgr = CopyManager(self.conn, "ihr_hegemony_prefix", columns)
         self.cursor = self.conn.cursor()
         logging.debug("Connected to the PostgreSQL server")
@@ -235,7 +235,7 @@ class saverPostgresql(object):
 
             # Hegemony values to copy in the database
             if hege!= 0:
-            #("timebin", "prefix", "originasn_id", "asn_id", "country_id", "hege", 
+            #("id", "timebin", "prefix", "originasn_id", "asn_id", "country_id", "hege", 
             # "rpki_status", "irr_status", "delegated_prefix_status", "delegated_asn_status", 
             # "af", "descr", "visibility", "moas")
 
@@ -279,7 +279,7 @@ class saverPostgresql(object):
                     self.cache['descr'] = descr
 
                 self.dataHege.append([
-                    self.currenttime, prefix, int(originasn), int(asn), cc, float(hege), 
+                    0, self.currenttime, prefix, int(originasn), int(asn), cc, float(hege), 
                     rov_check['rpki']['status'], rov_check['irr']['status'], 
                     rov_check['delegated']['prefix']['status'], rov_check['delegated']['asn']['status'], 
                     self.af, descr, msg['nb_peers']
@@ -298,7 +298,7 @@ class saverPostgresql(object):
         # set visibility in percentage and add moas
         for vec in self.dataHege:
             vec[-1] = 100.0*(vec[-1]/self.nb_peers)
-            rnode = self.rtree.search_best(vec[1])
+            rnode = self.rtree.search_best(vec[2])
             vec.append( len(rnode.data['originasn'])>1 )
 
         logging.warning(f"psql: start copy, ts={self.currenttime}, nb. data points={len(self.dataHege)}")
