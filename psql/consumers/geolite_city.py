@@ -14,7 +14,7 @@ class GeoliteCity(object):
 
     def __init__(self) -> None:
         
-        self.folder = appdirs.user_cache_dir('pear', 'ihr')
+        self.folder = appdirs.user_cache_dir('geolite', 'ihr')
         self.dbfname = ''
         self.reader = None
 
@@ -46,13 +46,16 @@ class GeoliteCity(object):
         self.download_database(overwrite=False)
         self.reader = geoip2.database.Reader(self.dbfname)
 
-    def country(self, ip):
+    def lookup(self, ip):
         """Find the country code for the given IP address"""
         cc = "ZZ"
         try:
             cc = self.reader.city(ip).country.iso_code
         except geoip2.errors.AddressNotFoundError:
             pass
+
+        if cc is None:
+            cc = "ZZ"
 
         return cc
 

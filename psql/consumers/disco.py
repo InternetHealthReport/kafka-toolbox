@@ -25,7 +25,7 @@ class saverPostgresql(object):
 
         self.consumer_bursts = Consumer({
             'bootstrap.servers': KAFKA_HOST,
-            'group.id': 'ihr_disco_bursts_psql_sink0',
+            'group.id': 'ihr_disco_bursts_psql_sink00',
             'auto.offset.reset': 'earliest',
             'enable.auto.commit': 'false',
             })
@@ -33,7 +33,7 @@ class saverPostgresql(object):
 
         self.consumer_reconnect = Consumer({
             'bootstrap.servers': KAFKA_HOST,
-            'group.id': 'ihr_disco_reconnect_psql_sink0',
+            'group.id': 'ihr_disco_reconnect_psql_sink00',
             'auto.offset.reset': 'earliest',
             'enable.auto.commit': 'false',
             'enable.auto.offset.store': 'false',

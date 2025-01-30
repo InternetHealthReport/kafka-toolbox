@@ -59,7 +59,7 @@ class saverOutDelay(object):
         # Kafka consumer initialisation
         self.consumer = Consumer({
             'bootstrap.servers': KAFKA_HOST,
-            'group.id': 'ihr_raclette_diffrtt_sink0',
+            'group.id': 'ihr_raclette_diffrtt_sink00',
             'auto.offset.reset': 'earliest',
             })
 

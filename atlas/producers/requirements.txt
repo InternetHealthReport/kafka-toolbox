@@ -1,8 +1,8 @@
-arrow==1.2.3
-confluent_kafka==2.0.2
-msgpack_python==0.5.6
-numpy==1.19.5
-requests==2.27.1
-requests_futures==1.0.0
-ripe==0.0.4
-ripe.atlas.cousteau==2.0.0
+arrow
+confluent_kafka
+msgpack_python
+numpy
+requests
+requests_futures
+ripe
+ripe.atlas.cousteau

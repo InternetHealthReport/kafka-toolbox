@@ -1,0 +1,153 @@
+services:
+  anomalyAtlasdelay:
+    image: "internethealthreport/psql_consumers"
+    restart: unless-stopped
+    command: anomalyDetector.py anomalyAtlasdelay.conf
+    env_file:
+      - path: .env
+        required: true # default
+
+  anomalyHegemony:
+    image: "internethealthreport/psql_consumers"
+    restart: unless-stopped
+    command: anomalyDetector.py anomalyHegemony.conf
+    env_file:
+      - path: .env
+        required: true # default
+
+  anomalyHegemony_v6:
+    image: "internethealthreport/psql_consumers"
+    restart: unless-stopped
+    command: anomalyDetector.py anomalyHegemony_v6.conf
+    env_file:
+      - path: .env
+        required: true # default
+
+  countryHegemony:
+    image: "internethealthreport/psql_consumers"
+    restart: unless-stopped
+    command: CountryHegemony.py 4
+    env_file:
+      - path: .env
+        required: true # default
+
+  disco:
+    image: "internethealthreport/psql_consumers"
+    restart: unless-stopped
+    command: disco.py
+    env_file:
+      - path: .env
+        required: true # default
+
+  metis_atlas_deployment_v4_as_path_length:
+    image: "internethealthreport/psql_consumers"
+    restart: unless-stopped
+    command: anomalyDetector.py metis_atlas_deployment_v4_as_path_length.conf
+    env_file:
+      - path: .env
+        required: true # default
+
+  metis_atlas_deployment_v4_ip_hops:
+    image: "internethealthreport/psql_consumers"
+    restart: unless-stopped
+    command: anomalyDetector.py metis_atlas_deployment_v4_ip_hops.conf
+    env_file:
+      - path: .env
+        required: true # default
+    
+  metis_atlas_deployment_v4_rtt:
+    image: "internethealthreport/psql_consumers"
+    restart: unless-stopped
+    command: anomalyDetector.py metis_atlas_deployment_v4_rtt.conf
+    env_file:
+      - path: .env
+        required: true # default
+
+  metis_atlas_deployment_v6_as_path_length:
+    image: "internethealthreport/psql_consumers"
+    restart: unless-stopped
+    command: anomalyDetector.py metis_atlas_deployment_v6_as_path_length.conf
+    env_file:
+      - path: .env
+        required: true # default
+
+  metis_atlas_deployment_v6_ip_hops:
+    image: "internethealthreport/psql_consumers"
+    restart: unless-stopped
+    command: anomalyDetector.py metis_atlas_deployment_v6_ip_hops.conf
+    env_file:
+      - path: .env
+        required: true # default
+
+  metis_atlas_deployment_v6_rtt:
+    image: "internethealthreport/psql_consumers"
+    restart: unless-stopped
+    command: anomalyDetector.py metis_atlas_deployment_v6_rtt.conf
+    env_file:
+      - path: .env
+        required: true # default
+
+  metis_atlas_selection_v4_as_path_length:
+    image: "internethealthreport/psql_consumers"
+    restart: unless-stopped
+    command: anomalyDetector.py metis_atlas_selection_v4_as_path_length.conf
+    env_file:
+      - path: .env
+        required: true # default
+
+  metis_atlas_selection_v4_ip_hops:
+    image: "internethealthreport/psql_consumers"
+    restart: unless-stopped
+    command: anomalyDetector.py metis_atlas_selection_v4_ip_hops.conf
+    env_file:
+      - path: .env
+        required: true # default
+
+  metis_atlas_selection_v4_rtt:
+    image: "internethealthreport/psql_consumers"
+    restart: unless-stopped
+    command: anomalyDetector.py metis_atlas_selection_v4_rtt.conf
+    env_file:
+      - path: .env
+        required: true # default
+
+  metis_atlas_selection_v6_as_path_length:
+    image: "internethealthreport/psql_consumers"
+    restart: unless-stopped
+    command: anomalyDetector.py metis_atlas_selection_v6_as_path_length.conf
+    env_file:
+      - path: .env
+        required: true # default
+
+  metis_atlas_selection_v6_ip_hops:
+    image: "internethealthreport/psql_consumers"
+    restart: unless-stopped
+    command: anomalyDetector.py metis_atlas_selection_v6_ip_hops.conf
+    env_file:
+      - path: .env
+        required: true # default
+
+  metis_atlas_selection_v6_rtt:
+    image: "internethealthreport/psql_consumers"
+    restart: unless-stopped
+    command: anomalyDetector.py metis_atlas_selection_v6_rtt.conf
+    env_file:
+      - path: .env
+        required: true # default
+
+  network-delay:
+    image: "internethealthreport/psql_consumers"
+    restart: unless-stopped
+    command: network-delay.py
+    env_file:
+      - path: .env
+        required: true # default
+
+  tr_hegemony_atlas_v4_as_path_length:
+    image: "internethealthreport/psql_consumers"
+    restart: unless-stopped
+    command: TRHegemony.py tr_hegemony_atlas_v4_as_path_length.conf
+    env_file:
+      - path: .env
+        required: true # default
+
