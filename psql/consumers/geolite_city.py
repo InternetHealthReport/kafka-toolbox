@@ -8,6 +8,9 @@ import tarfile
 import urllib.request as request
 from contextlib import closing
 
+global API_KEY
+API_KEY = os.environ["MAXMIND_API_KEY"]
+
 URL = 'https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&suffix=tar.gz&license_key='
 
 
@@ -61,9 +64,6 @@ class GeoliteCity(object):
 
 
 if __name__ == '__main__':
-
-    global API_KEY
-    API_KEY = os.environ["MAXMIND_API_KEY"]
 
     gc = GeoliteCity()
     gc.download_database(overwrite=False)
