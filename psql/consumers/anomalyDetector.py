@@ -147,7 +147,9 @@ class saverPostgresql(object):
             return
 
         logging.warning("psql: start copy")
+        logging.warning(f"dataBuffer len: {}".format(len(self.dataBuffer)))
         self.cpmgr.copy(self.dataBuffer)
+        logging.warning("commit")
         self.conn.commit()
         logging.warning("psql: end copy")
         self.dataBuffer = []
