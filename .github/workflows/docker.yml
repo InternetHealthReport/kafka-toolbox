@@ -16,10 +16,14 @@ jobs:
                 name: anomalydetector
                 context: ./generic/detector
                 python-version: 3.8
-              - dockerfile: ./bgp/producers/Dockerfile
+              - dockerfile: ./bgp/producers/bgpstream/Dockerfile
                 name: bgp
-                context: ./bgp/producers
+                context: ./bgp/producers/bgpstream
                 python-version: 3.8
+              - dockerfile: ./bgp/producers/bgpkit/Dockerfile
+                name: bgp-bgpkit
+                context: ./bgp/producers/bgpkit
+                python-version: 3.12
               - dockerfile: ./peeringdb/producers/Dockerfile
                 name: peeringdb
                 context: ./peeringdb/producers
