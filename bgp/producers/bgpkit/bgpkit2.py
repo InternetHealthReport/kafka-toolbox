@@ -23,15 +23,15 @@ def delivery_report(err, msg):
 
 def getElementDict(element: dict):
     elementDict = dict()
-    elementDict['type'] = element['elem_type']
-    elementDict['time'] = element['timestamp']
-    elementDict['peer_asn'] = element['peer_asn']
-    elementDict['peer_address'] = element['peer_ip']
+    elementDict['type'] = element.elem_type
+    elementDict['time'] = element.timestamp
+    elementDict['peer_asn'] = element.peer_asn
+    elementDict['peer_address'] = element.peer_ip
     elementDict['fields'] = {
-        'next-hop': element['next_hop'],
-        'as-path': element['as_path'],
-        'communities': list() if not element['communities'] else element['communities'],
-        'prefix': element['prefix']
+        'next-hop': element.next_hop,
+        'as-path': element.as_path,
+        'communities': list() if not element.communities else element.communities,
+        'prefix': element.prefix
     }
     return elementDict
 
