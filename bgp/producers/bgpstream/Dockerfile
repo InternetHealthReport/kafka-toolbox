@@ -17,7 +17,7 @@
 #   - You have to pass set environment variable KAFKA_HOST (eg. `--env KAFKA_HOST="kafka:9092") 
 
 ARG IMAGE_VERSION="ihr"
-ARG PYTHON_VERSION="3.8"
+ARG PYTHON_VERSION="3.12"
 
 FROM internethealthreport/python:${PYTHON_VERSION}-${IMAGE_VERSION}
 
