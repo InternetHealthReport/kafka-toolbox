@@ -27,7 +27,7 @@
 #   - Config files are already included in the container.
 
 ARG IMAGE_VERSION="ihr"
-ARG PYTHON_VERSION="3.6"
+ARG PYTHON_VERSION="3.12"
 
 FROM internethealthreport/python:${PYTHON_VERSION}-${IMAGE_VERSION}
 
