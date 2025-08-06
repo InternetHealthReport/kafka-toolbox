@@ -19,7 +19,7 @@ jobs:
               - dockerfile: ./bgp/producers/bgpstream/Dockerfile
                 name: bgp
                 context: ./bgp/producers/bgpstream
-                python-version: 3.8
+                python-version: 3.12
               - dockerfile: ./bgp/producers/bgpkit/Dockerfile
                 name: bgp-bgpkit
                 context: ./bgp/producers/bgpkit
@@ -39,7 +39,7 @@ jobs:
               - dockerfile: ./psql/consumers/Dockerfile
                 name: psql_consumers
                 context: ./psql/consumers
-                python-version: 3.8
+                python-version: 3.12
         steps:
             - uses: actions/checkout@v3
             - name: Setup Docker Buildx
