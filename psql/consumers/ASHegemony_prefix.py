@@ -298,7 +298,7 @@ class saverPostgresql(object):
         # set visibility in percentage and add moas
         for vec in self.dataHege:
             vec[-1] = 100.0*(vec[-1]/self.nb_peers)
-            rnode = self.rtree.search_best(vec[2])
+            rnode = self.rtree.search_best(vec[1])
             vec.append( len(rnode.data['originasn'])>1 )
 
         logging.warning(f"psql: start copy, ts={self.currenttime}, nb. data points={len(self.dataHege)}")
