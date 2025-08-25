@@ -8,6 +8,7 @@ import requests
 import sys
 import configparser
 import argparse
+from multiprocessing import Pool
 from datetime import timedelta
 from requests_futures.sessions import FuturesSession
 from requests.adapters import HTTPAdapter
@@ -24,6 +25,12 @@ def valid_date(s):
     except ValueError:
         # Not a valid date:
         return None
+
+
+def chunks(lst, n):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
 
 
 def requests_retry_session(
@@ -59,7 +66,7 @@ def worker_task(resp, *args, **kwargs):
         resp.data = {}
 
 
-def cousteau_on_steroid(params, retry=3):
+def cousteau_on_steroid(params):
     """Query the REST API in parallel"""
 
     url = "https://atlas.ripe.net/api/v2/measurements/{0}/results"
@@ -136,8 +143,79 @@ def fetch_measurement_ids(topic):
     return ids
 
 
+def doit(batch_params):
+
+    # Create producer
+    producer = Producer({'bootstrap.servers': KAFKA_HOST,
+                         'queue.buffering.max.messages': 10000000,
+                         'queue.buffering.max.kbytes': 2097151,
+                         'linger.ms': 200,
+                         'batch.num.messages': 1000000,
+                         'message.max.bytes': 999000,
+                         'default.topic.config': {'compression.codec': 'snappy'}})
+
+    # Fetch data from RIPE
+    current_time = batch_params['start']
+    end_time = batch_params['stop']
+    end_epoch = int(calendar.timegm(end_time.timetuple()))
+
+    while current_time < end_time:
+        logging.warning(f"Downloading: {current_time}")
+        params = {"msm_id": batch_params['msm_ids'], "start": current_time,
+                  "stop": current_time + timedelta(seconds=chunk_size),
+                  "probe_ids": batch_params['probe_ids']}
+
+        for is_success, data in cousteau_on_steroid(params):
+            if is_success:
+                for traceroute in data:
+
+                    if traceroute['timestamp'] >= end_epoch:
+                        continue
+                    try:
+                        logging.debug('going to produce something')
+                        producer.produce(
+                                topic,
+                                msgpack.packb(traceroute, use_bin_type=True),
+                                traceroute['msm_id'].to_bytes(8, byteorder='big'),
+                                callback=delivery_report,
+                                timestamp=traceroute.get('timestamp')*1000
+                                )
+
+                        logging.debug('produced something')
+                        # Trigger any available delivery report callbacks from previous produce() calls
+                        producer.poll(0)
+
+                    except KeyError:
+                        logging.error(f"Ignoring one traceroute: {traceroute}")
+                    except BufferError:
+                        logging.error('Local queue is full ')
+                        producer.flush()
+                        producer.produce(
+                                topic,
+                                msgpack.packb(traceroute, use_bin_type=True),
+                                traceroute['msm_id'].to_bytes(8, byteorder='big'),
+                                callback=delivery_report,
+                                timestamp=traceroute.get('timestamp')*1000
+                                )
+
+                        # Trigger any available delivery report callbacks from previous produce() calls
+                        producer.poll(0)
+
+            else:
+                logging.error(f"Error could not load the data")
+
+            # Wait for any outstanding messages to be delivered and delivery report
+            # callbacks to be triggered.
+            producer.flush()
+
+        current_time = current_time + timedelta(seconds=chunk_size)
+
+    return batch_params['worker_id']
+
+
 if __name__ == '__main__':
     KAFKA_HOST = os.environ["KAFKA_HOST"]
+    NB_PROC = 8
 
     # Command line arguments
     parser = argparse.ArgumentParser()
@@ -162,7 +240,6 @@ if __name__ == '__main__':
     config = configparser.ConfigParser()
     config.read(args.config_file)
 
-    # atlas_msm_ids =  [int(x) for x in config.get("io", "msm_ids").split(",") if x]
     logging.info("Start consumption")
     msm_ids_topic = "atlas_measurement_ids"
     atlas_msm_ids = fetch_measurement_ids(msm_ids_topic)
@@ -195,66 +272,19 @@ if __name__ == '__main__':
         except Exception as e:
             logging.warning("Failed to create topic {}: {}".format(topic, e))
 
-    # Create producer
-    producer = Producer({'bootstrap.servers': KAFKA_HOST,
-                         'queue.buffering.max.messages': 10000000,
-                         'queue.buffering.max.kbytes': 2097151,
-                         'linger.ms': 200,
-                         'batch.num.messages': 1000000,
-                         'message.max.bytes': 999000,
-                         'default.topic.config': {'compression.codec': 'snappy'}})
+    # run in parallel
+    with Pool(processes=NB_PROC) as pool:
 
-    # Fetch data from RIPE
-    current_time = atlas_start
-    end_time = atlas_stop
-    end_epoch = int(calendar.timegm(end_time.timetuple()))
-    while current_time < end_time:
-        logging.warning("downloading: "+str(current_time))
-        params = {"msm_id": atlas_msm_ids, "start": current_time,
-                  "stop": current_time + timedelta(seconds=chunk_size),
-                  "probe_ids": atlas_probe_ids}
+        all_params = [
+                    {
+                        'start': atlas_start,
+                        'stop': atlas_stop,
+                        'probe_ids': atlas_probe_ids,
+                        'msm_ids': ids,
+                        'worker_id': i
+                    }
+                    for i, ids in enumerate(chunks(atlas_msm_ids, int(len(atlas_msm_ids)/NB_PROC)))
+                 ]
 
-        for is_success, data in cousteau_on_steroid(params):
-            if is_success:
-                for traceroute in data:
-
-                    if traceroute['timestamp'] >= end_epoch:
-                        continue
-                    try:
-                        logging.debug('going to produce something')
-                        producer.produce(
-                                topic,
-                                msgpack.packb(traceroute, use_bin_type=True),
-                                traceroute['msm_id'].to_bytes(8, byteorder='big'),
-                                callback=delivery_report,
-                                timestamp=traceroute.get('timestamp')*1000
-                                )
-
-                        logging.debug('produced something')
-                        # Trigger any available delivery report callbacks from previous produce() calls
-                        producer.poll(0)
-
-                    except KeyError:
-                        logging.error('Ignoring one traceroute: {}'.format(traceroute))
-                    except BufferError:
-                        logging.error('Local queue is full ')
-                        producer.flush()
-                        producer.produce(
-                                topic,
-                                msgpack.packb(traceroute, use_bin_type=True),
-                                traceroute['msm_id'].to_bytes(8, byteorder='big'),
-                                callback=delivery_report,
-                                timestamp=traceroute.get('timestamp')*1000
-                                )
-
-                        # Trigger any available delivery report callbacks from previous produce() calls
-                        producer.poll(0)
-
-            else:
-                logging.error("Error could not load the data")
-
-            # Wait for any outstanding messages to be delivered and delivery report
-            # callbacks to be triggered.
-            producer.flush()
-
-        current_time = current_time + timedelta(seconds=chunk_size)
+        for i in pool.imap_unordered(doit, all_params):
+            logging.info(f"Worker {i} ended")
