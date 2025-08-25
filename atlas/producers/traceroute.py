@@ -4,7 +4,6 @@ import json
 import os
 import msgpack
 import logging
-import numpy as np
 import requests
 import sys
 import configparser
@@ -16,14 +15,16 @@ from requests.packages.urllib3.util.retry import Retry
 from confluent_kafka import Producer, Consumer, TopicPartition
 from confluent_kafka.admin import AdminClient, NewTopic
 
+
 def valid_date(s):
     """Parse date from config file"""
 
     try:
         return datetime.datetime.strptime(s+"UTC", "%Y-%m-%dT%H:%M%Z")
     except ValueError:
-        # Not a valid date: 
+        # Not a valid date:
         return None
+
 
 def requests_retry_session(
     retries=3,
@@ -74,9 +75,11 @@ def cousteau_on_steroid(params, retry=3):
 
     session = requests_retry_session()
     for msm in params["msm_id"]:
-        queries.append( [session.get(url=url.format(msm), params=req_param,
-                hooks={ 'response': worker_task, }
-            ), [url.format(msm), req_param]] )
+        queries.append([session.get(
+                                    url=url.format(msm), params=req_param,
+                                    hooks={'response': worker_task}
+                                    ),
+                       [url.format(msm), req_param]])
 
     for tmp in queries:
         query = tmp[0]
@@ -98,6 +101,7 @@ def delivery_report(err, msg):
         # print('Message delivered to {} [{}]'.format(msg.topic(), msg.partition()))
         pass
 
+
 def fetch_measurement_ids(topic):
     """
     Fetches Atlas measurement ids from kafka topic: atlas_measurements
@@ -105,7 +109,7 @@ def fetch_measurement_ids(topic):
     logging.info("Start consuming measurement ids from Kafka..")
 
     consumer = Consumer({
-        'bootstrap.servers':KAFKA_HOST,
+        'bootstrap.servers': KAFKA_HOST,
         'group.id': 'measurement_ids',
         'enable.auto.commit': False,
     })
@@ -131,18 +135,19 @@ def fetch_measurement_ids(topic):
     logging.info("Finished consuming measurement ids from Kafka")
     return ids
 
+
 if __name__ == '__main__':
     KAFKA_HOST = os.environ["KAFKA_HOST"]
 
     # Command line arguments
     parser = argparse.ArgumentParser()
     parser.add_argument(
-            "-C","--config_file", 
-            help="Get all parameters from the specified config file", 
+            "-C", "--config_file",
+            help="Get all parameters from the specified config file",
             type=str, default="conf/ihr-default.conf")
     args = parser.parse_args()
 
-    # Logging 
+    # Logging
     FORMAT = '%(asctime)s %(processName)s %(message)s'
     logging.basicConfig(
             format='%(asctime)s %(processName)s %(message)s',
@@ -161,16 +166,16 @@ if __name__ == '__main__':
     logging.info("Start consumption")
     msm_ids_topic = "atlas_measurement_ids"
     atlas_msm_ids = fetch_measurement_ids(msm_ids_topic)
-    atlas_probe_ids =  [int(x) for x in config.get("io", "probe_ids").split(",") if x]
+    atlas_probe_ids = [int(x) for x in config.get("io", "probe_ids").split(",") if x]
     logging.info("End consumption")
 
-    atlas_start =  valid_date(config.get("io", "start"))
-    atlas_stop =  valid_date(config.get("io", "stop"))
+    atlas_start = valid_date(config.get("io", "start"))
+    atlas_stop = valid_date(config.get("io", "stop"))
 
     # No data given:
-    # Fetch the last 5 min of data that happened -10 to -5 min ago 
+    # Fetch the last 5 min of data that happened -10 to -5 min ago
     if atlas_start is None or atlas_stop is None:
-        currentTime = datetime.datetime.utcnow()
+        currentTime = datetime.datetime.now(datetime.timezone.utc)
         atlas_start = currentTime.replace(microsecond=0, second=0)-timedelta(minutes=10)
         atlas_stop = currentTime.replace(microsecond=0, second=0)-timedelta(minutes=5)
         logging.warning('start and end times: {}, {}'.format(atlas_start, atlas_stop))
@@ -192,13 +197,12 @@ if __name__ == '__main__':
 
     # Create producer
     producer = Producer({'bootstrap.servers': KAFKA_HOST,
-        # 'linger.ms': 1000, 
-        'queue.buffering.max.messages': 10000000,
-        'queue.buffering.max.kbytes': 2097151,
-        'linger.ms': 200,
-        'batch.num.messages': 1000000,
-        'message.max.bytes': 999000,
-        'default.topic.config': {'compression.codec': 'snappy'}}) 
+                         'queue.buffering.max.messages': 10000000,
+                         'queue.buffering.max.kbytes': 2097151,
+                         'linger.ms': 200,
+                         'batch.num.messages': 1000000,
+                         'message.max.bytes': 999000,
+                         'default.topic.config': {'compression.codec': 'snappy'}})
 
     # Fetch data from RIPE
     current_time = atlas_start
@@ -206,8 +210,10 @@ if __name__ == '__main__':
     end_epoch = int(calendar.timegm(end_time.timetuple()))
     while current_time < end_time:
         logging.warning("downloading: "+str(current_time))
-        params = { "msm_id": atlas_msm_ids, "start": current_time, "stop": current_time  + timedelta(seconds=chunk_size), "probe_ids": atlas_probe_ids }
-        
+        params = {"msm_id": atlas_msm_ids, "start": current_time,
+                  "stop": current_time + timedelta(seconds=chunk_size),
+                  "probe_ids": atlas_probe_ids}
+
         for is_success, data in cousteau_on_steroid(params):
             if is_success:
                 for traceroute in data:
@@ -217,11 +223,11 @@ if __name__ == '__main__':
                     try:
                         logging.debug('going to produce something')
                         producer.produce(
-                                topic, 
-                                msgpack.packb(traceroute, use_bin_type=True), 
+                                topic,
+                                msgpack.packb(traceroute, use_bin_type=True),
                                 traceroute['msm_id'].to_bytes(8, byteorder='big'),
                                 callback=delivery_report,
-                                timestamp = traceroute.get('timestamp')*1000
+                                timestamp=traceroute.get('timestamp')*1000
                                 )
 
                         logging.debug('produced something')
@@ -234,16 +240,15 @@ if __name__ == '__main__':
                         logging.error('Local queue is full ')
                         producer.flush()
                         producer.produce(
-                                topic, 
-                                msgpack.packb(traceroute, use_bin_type=True), 
+                                topic,
+                                msgpack.packb(traceroute, use_bin_type=True),
                                 traceroute['msm_id'].to_bytes(8, byteorder='big'),
                                 callback=delivery_report,
-                                timestamp = traceroute.get('timestamp')*1000
+                                timestamp=traceroute.get('timestamp')*1000
                                 )
 
                         # Trigger any available delivery report callbacks from previous produce() calls
                         producer.poll(0)
-
 
             else:
                 logging.error("Error could not load the data")
@@ -252,4 +257,4 @@ if __name__ == '__main__':
             # callbacks to be triggered.
             producer.flush()
 
-        current_time = current_time + timedelta(seconds = chunk_size)
+        current_time = current_time + timedelta(seconds=chunk_size)
