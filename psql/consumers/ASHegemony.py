@@ -1,13 +1,15 @@
 # Consume AS Hegemony results from Kafka and store them in PostgreSQL.
 #
-# By default this script pushes data for the current (UTC) day and ignores data
-# for following days. It assumes that the data for the current day is ordered
-# per partition.
+# Without arguments the script runs continuously: it resumes from the last
+# timebin found in the database (redoing it, as it may be partial), or from
+# today 00:00 UTC if the table is empty, and never stops. Run it under a
+# supervisor (docker --restart=unless-stopped, systemd Restart=always, ...).
 #
-# This version is idempotent and restart-safe: on start it looks at what is
-# already in the database for this day, deletes the last (possibly partial)
-# timebin and resumes from there. It can therefore run under a supervisor
-# (systemd Restart=always, docker restart policy, ...) and be rerun manually.
+# With "starttime [endtime]" it processes only that window and exits, which is
+# the mode to use for backfilling. In both modes it is idempotent: rerunning it
+# never duplicates rows.
+#
+# It assumes that data is ordered per partition.
 
 import logging
 import os
@@ -23,7 +25,7 @@ import psycopg2.extras
 from confluent_kafka import Consumer, KafkaError, TopicPartition
 from pgcopy import CopyManager
 
-# Give up only this long (s) after the end of the day window.
+# Window mode only: give up this long (s) after the end of the window.
 MAX_LAG = int(os.environ.get("ASHEGE_MAX_LAG", 4 * 3600))
 DB_RETRY_DELAY = 30
 DB_MAX_RETRIES = 20
@@ -32,11 +34,14 @@ DB_MAX_RETRIES = 20
 class saverPostgresql(object):
     """Dumps hegemony results to a Postgresql database."""
 
-    def __init__(self, topic, af, start, end):
+    def __init__(self, topic, af, start=None, end=None):
+        """start/end: arrow objects delimiting a window, or None for continuous
+        mode (resume from the database and never stop)."""
         self.topic = topic
         self.af = int(af)
-        self.start_ts = int(start.timestamp())
-        self.end_ts = int(end.timestamp())
+        self.start_ts = int(start.timestamp()) if start is not None \
+            else int(arrow.utcnow().replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
+        self.end_ts = int(end.timestamp()) if end is not None else None
 
         self.prevts = 0
         self.currenttime = None
@@ -98,11 +103,16 @@ class saverPostgresql(object):
         raise RuntimeError("could not connect to PostgreSQL")
 
     def find_resume_point(self):
-        start = datetime.fromtimestamp(self.start_ts, timezone.utc)
-        end = datetime.fromtimestamp(self.end_ts, timezone.utc)
-        self.cursor.execute(
-            "SELECT max(timebin) FROM ihr_hegemony WHERE af=%s AND timebin >= %s AND timebin < %s",
-            (self.af, start, end))
+        if self.end_ts is None:
+            # Continuous mode: resume from whatever is the newest bin in the DB.
+            self.cursor.execute(
+                "SELECT max(timebin) FROM ihr_hegemony WHERE af=%s", (self.af,))
+        else:
+            start = datetime.fromtimestamp(self.start_ts, timezone.utc)
+            end = datetime.fromtimestamp(self.end_ts, timezone.utc)
+            self.cursor.execute(
+                "SELECT max(timebin) FROM ihr_hegemony WHERE af=%s AND timebin >= %s AND timebin < %s",
+                (self.af, start, end))
         last = self.cursor.fetchone()[0]
         if last is None:
             self.conn.commit()
@@ -144,7 +154,7 @@ class saverPostgresql(object):
     def run(self):
         """Consume data from the kafka topic and save it to the database."""
         logging.warning("Start reading topic")
-        deadline = self.end_ts + MAX_LAG
+        deadline = self.end_ts + MAX_LAG if self.end_ts is not None else None
         last_msg = time.time()
         next_day_seen = set()
 
@@ -153,7 +163,7 @@ class saverPostgresql(object):
             now = time.time()
 
             if msg is None:
-                if now > deadline:
+                if deadline is not None and now > deadline:
                     logging.warning("Deadline passed, stopping")
                     break
                 if now - last_msg > 900:
@@ -177,8 +187,8 @@ class saverPostgresql(object):
             ts = msg_val['timestamp']
             if ts < self.resume_ts:
                 continue
-            if ts >= self.end_ts:
-                # The day is over on this partition. Once every partition has moved
+            if self.end_ts is not None and ts >= self.end_ts:
+                # The window is over on this partition. Once every partition has moved
                 # to the next day the last bin is complete: commit and stop.
                 next_day_seen.add(key)
                 if next_day_seen == self.partition_keys:
@@ -275,19 +285,19 @@ if __name__ == "__main__":
     DB_CONNECTION_STRING = os.environ["DB_CONNECTION_STRING"]
 
     if len(sys.argv) < 3:
-        print("usage: %s topic af [starttime endtime]" % sys.argv[0])
+        print("usage: %s topic af [starttime [endtime]]" % sys.argv[0])
+        print("  no time given: run continuously, resuming from the database")
+        print("  starttime only: process one day starting at starttime, then exit")
         sys.exit(1)
 
     topic = sys.argv[1]
     af = int(sys.argv[2])
+    start = end = None
     if len(sys.argv) > 3:
         start = arrow.get(sys.argv[3])
         end = arrow.get(sys.argv[4]) if len(sys.argv) > 4 else start.shift(days=1)
-    else:
-        start = arrow.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-        end = start.shift(days=1)
 
-    logging.warning(f"Started: {sys.argv} {start} {end}")
+    logging.warning(f"Started: {sys.argv} {start or 'continuous'} {end or ''}")
     try:
         ss = saverPostgresql(topic, af, start, end)
         ss.run()
