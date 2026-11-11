@@ -1,10 +1,14 @@
-from ripe.atlas.cousteau import MeasurementRequest
 import arrow
 import logging
 import msgpack
+import requests
 from confluent_kafka import Producer
 from confluent_kafka.admin import AdminClient, NewTopic
 import os
+
+ATLAS_API_URL = "https://atlas.ripe.net/api/v2/measurements/"
+PAGE_SIZE = 500
+REQUEST_TIMEOUT = 60
 
 def delivery_report(err, msg):
     """
@@ -27,23 +31,32 @@ def fetch_measurement_ids():
     # and include more than 100 probes
     min_participants = 100
 
-    filters = {
-        'interval__lte':3600,
-        'start_time__lte':one_month_ago,
+    params = {
+        'interval__lte': 3600,
+        'start_time__lte': one_month_ago,
         'type': 'traceroute',
         'af': 4,
         'status': 2,
-        'first_hop': 1
+        'first_hop': 1,
+        'page_size': PAGE_SIZE,
     }
 
-    measurements = MeasurementRequest(**filters)
-
     ids = set()
+    url = ATLAS_API_URL
 
-    for msm in measurements:
-        participants = msm["participant_count"]
-        if participants is None or participants > min_participants:
-            ids.add(msm["id"])
+    while url:
+        resp = requests.get(url, params=params, timeout=REQUEST_TIMEOUT)
+        resp.raise_for_status()
+        data = resp.json()
+
+        for msm in data.get("results", []):
+            participants = msm["participant_count"]
+            if participants is None or participants > min_participants:
+                ids.add(msm["id"])
+
+        # the 'next' url already contains all the query parameters
+        url = data.get("next")
+        params = None
 
     logging.info(f"Fetched {len(ids)} measurement ids")
 
@@ -82,10 +95,6 @@ def produce(ids):
     return
 
 if __name__ == "__main__":
-    # Environment Variables
-    KAFKA_HOST = os.environ["KAFKA_HOST"]
-    OUTPUT_TOPIC = os.environ.get("OUTPUT_TOPIC", "atlas_measurement_ids")
-
     # Logging
     logging.basicConfig(
         format='%(asctime)s %(message)s',
@@ -97,6 +106,12 @@ if __name__ == "__main__":
     logging.info("Starting..")
 
     # Run
-    produce(fetch_measurement_ids())
+    ids = fetch_measurement_ids()
+
+    print(ids)
+    # Environment Variables
+    # KAFKA_HOST = os.environ["KAFKA_HOST"]
+    # OUTPUT_TOPIC = os.environ.get("OUTPUT_TOPIC", "atlas_measurement_ids")
+    # produce(ids)
 
     logging.info("Exiting")

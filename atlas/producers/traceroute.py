@@ -66,7 +66,7 @@ def worker_task(resp, *args, **kwargs):
         resp.data = {}
 
 
-def cousteau_on_steroid(params):
+def fetch_results(params):
     """Query the REST API in parallel"""
 
     url = "https://atlas.ripe.net/api/v2/measurements/{0}/results"
@@ -165,7 +165,7 @@ def doit(batch_params):
                   "stop": current_time + timedelta(seconds=chunk_size),
                   "probe_ids": batch_params['probe_ids']}
 
-        for is_success, data in cousteau_on_steroid(params):
+        for is_success, data in fetch_results(params):
             if is_success:
                 for traceroute in data:
 

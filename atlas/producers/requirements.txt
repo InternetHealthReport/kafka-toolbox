@@ -4,5 +4,3 @@ msgpack_python
 numpy
 requests
 requests_futures
-ripe
-ripe.atlas.cousteau
