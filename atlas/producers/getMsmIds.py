@@ -95,6 +95,10 @@ def produce(ids):
     return
 
 if __name__ == "__main__":
+    # Environment Variables
+    KAFKA_HOST = os.environ["KAFKA_HOST"]
+    OUTPUT_TOPIC = os.environ.get("OUTPUT_TOPIC", "atlas_measurement_ids")
+
     # Logging
     logging.basicConfig(
         format='%(asctime)s %(message)s',
@@ -107,11 +111,6 @@ if __name__ == "__main__":
 
     # Run
     ids = fetch_measurement_ids()
-
-    print(ids)
-    # Environment Variables
-    # KAFKA_HOST = os.environ["KAFKA_HOST"]
-    # OUTPUT_TOPIC = os.environ.get("OUTPUT_TOPIC", "atlas_measurement_ids")
-    # produce(ids)
+    produce(ids)
 
     logging.info("Exiting")
