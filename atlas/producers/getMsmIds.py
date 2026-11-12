@@ -25,11 +25,11 @@ def fetch_measurement_ids():
     Fetches measurement ids from RIPE Atlas
     """
     logging.info("Started fetching measurements..")
-    # select all measurement that were active for at least a week
-    one_month_ago = int(arrow.utcnow().shift(days=7).timestamp())
+    # select all measurement that were active for at least a month
+    one_month_ago = int(arrow.utcnow().shift(days=30).timestamp())
 
     # and include more than 100 probes
-    min_participants = 100
+    min_participants = 500
 
     params = {
         'interval__lte': 3600,
@@ -37,7 +37,6 @@ def fetch_measurement_ids():
         'type': 'traceroute',
         'af': 4,
         'status': 2,
-        'first_hop': 1,
         'page_size': PAGE_SIZE,
     }
 
